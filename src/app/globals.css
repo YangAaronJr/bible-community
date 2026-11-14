@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+:root {
+  --background: #FAF9F6;
+  --foreground: #1F2937;
+  --paper: #FAF9F6;
+  --paper-card: #FFFFFF;
+  --paper-subtle: #F3EFEA;
+  --paper-border: #E5E0D8;
+  --charcoal: #1F2937;
+  --charcoal-muted: #596579;
+  --sage-50: #F4F7F5;
+  --sage-100: #E3EBE6;
+  --sage-200: #C5D7CC;
+  --sage-600: #4B6F5B;
+  --sage-700: #3D5A4A;
+  --slate-accent: #64748B;
+  --warm-gold: #D4A373;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-paper-card: var(--paper-card);
+  --color-paper-subtle: var(--paper-subtle);
+  --color-paper-border: var(--paper-border);
+  --color-charcoal: var(--charcoal);
+  --color-charcoal-muted: var(--charcoal-muted);
+  --color-sage-50: var(--sage-50);
+  --color-sage-100: var(--sage-100);
+  --color-sage-200: var(--sage-200);
+  --color-sage-600: var(--sage-600);
+  --color-sage-700: var(--sage-700);
+  --color-slate-accent: var(--slate-accent);
+  --color-warm-gold: var(--warm-gold);
+}
+
+body {
+  background-color: var(--paper);
+  color: var(--charcoal);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
