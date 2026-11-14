@@ -28,6 +28,7 @@ export type Database = {
           avatar_url?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       circles: {
         Row: {
@@ -54,6 +55,7 @@ export type Database = {
           max_members?: number;
           created_at?: string;
         };
+        Relationships: [];
       };
       circle_members: {
         Row: {
@@ -74,6 +76,7 @@ export type Database = {
           role?: "member" | "leader";
           joined_at?: string;
         };
+        Relationships: [];
       };
       reading_progress: {
         Row: {
@@ -100,6 +103,7 @@ export type Database = {
           read_in_physical_bible?: boolean;
           completed_at?: string;
         };
+        Relationships: [];
       };
       verse_notes: {
         Row: {
@@ -135,6 +139,7 @@ export type Database = {
           content?: string;
           created_at?: string;
         };
+        Relationships: [];
       };
       messages: {
         Row: {
@@ -167,6 +172,7 @@ export type Database = {
           image_url?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       rings: {
         Row: {
@@ -182,7 +188,7 @@ export type Database = {
           circle_id: string;
           sender_id: string;
           recipient_id: string;
-          message: string;
+          message?: string;
           created_at?: string;
         };
         Update: {
@@ -193,7 +199,11 @@ export type Database = {
           message?: string;
           created_at?: string;
         };
+        Relationships: [];
       };
+    };
+    Views: {
+      [_ in never]: never;
     };
     Functions: {
       is_circle_member: {
@@ -202,8 +212,14 @@ export type Database = {
       };
       join_circle_by_code: {
         Args: { code: string };
-        Returns: { circle_id: string; name: string };
+        Returns: { circle_id: string; name: string; already_member?: boolean };
       };
+    };
+    Enums: {
+      [_ in never]: never;
+    };
+    CompositeTypes: {
+      [_ in never]: never;
     };
   };
 };
