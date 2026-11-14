@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import Navbar from "@/components/ui/Navbar";
-import CircleManager from "@/components/circle/CircleManager";
+import CircleWorkspace from "@/components/circle/CircleWorkspace";
 
 export default async function CirclePage() {
   const supabase = await createClient();
@@ -23,11 +23,11 @@ export default async function CirclePage() {
           </h1>
           <p className="text-sm text-[#596579]">
             Intimate, invite-only small groups (up to 12 members) for shared
-            Scripture reflection and prayer.
+            Scripture reflection, physical notebook photos, and prayer.
           </p>
         </div>
 
-        <CircleManager />
+        <CircleWorkspace />
       </main>
     </div>
   );
