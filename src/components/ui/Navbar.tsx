@@ -3,7 +3,16 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BookOpen, Compass, LogOut, Sun, Users, UserCheck } from "lucide-react";
+import {
+  BellRing,
+  BookOpen,
+  Compass,
+  LogOut,
+  Sun,
+  Users,
+  UserCheck,
+  X,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const NAV_ITEMS = [
@@ -13,22 +22,30 @@ const NAV_ITEMS = [
   { href: "/journey", label: "Journey", icon: Compass },
 ];
 
+interface RingBannerItem {
+  id: string;
+  senderName: string;
+  message: string;
+}
+
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [latestRing, setLatestRing] = useState<RingBannerItem | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
 
-    async function loadUser() {
+    async function loadUserAndRings() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
         setIsAuthenticated(false);
         setDisplayName(null);
+        setLatestRing(null);
         return;
       }
       setIsAuthenticated(true);
@@ -44,9 +61,43 @@ export default function Navbar() {
           user.email?.split("@")[0] ||
           "Reader"
       );
+
+      // Check for any recent incoming Ring in the last 24 hours
+      const since24h = new Date(
+        Date.now() - 24 * 60 * 60 * 1000
+      ).toISOString();
+      const { data: ringRow } = await supabase
+        .from("rings")
+        .select("id, sender_id, message")
+        .eq("recipient_id", user.id)
+        .gte("created_at", since24h)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (ringRow) {
+        const dismissedKey = `dismissed_ring_${ringRow.id}`;
+        if (
+          typeof window !== "undefined" &&
+          sessionStorage.getItem(dismissedKey)
+        ) {
+          return;
+        }
+        const { data: senderProf } = await supabase
+          .from("profiles")
+          .select("display_name")
+          .eq("id", ringRow.sender_id)
+          .maybeSingle();
+
+        setLatestRing({
+          id: ringRow.id,
+          senderName: senderProf?.display_name || "A Circle Friend",
+          message: ringRow.message,
+        });
+      }
     }
 
-    loadUser();
+    loadUserAndRings();
   }, [pathname]);
 
   async function handleSignOut() {
@@ -54,6 +105,13 @@ export default function Navbar() {
     await supabase.auth.signOut();
     router.push("/login");
     router.refresh();
+  }
+
+  function dismissRingBanner() {
+    if (latestRing && typeof window !== "undefined") {
+      sessionStorage.setItem(`dismissed_ring_${latestRing.id}`, "1");
+    }
+    setLatestRing(null);
   }
 
   return (
@@ -116,6 +174,28 @@ export default function Navbar() {
             )}
           </div>
         </div>
+
+        {/* Global In-App Ring Notification Banner */}
+        {latestRing && pathname !== "/circle" && (
+          <div className="bg-[#F4F7F5] border-t border-[#C5D7CC] px-4 py-2">
+            <div className="max-w-3xl mx-auto flex items-center justify-between gap-2 text-xs text-[#3D5A4A]">
+              <div className="flex items-center gap-2">
+                <BellRing className="w-3.5 h-3.5 text-[#4B6F5B] shrink-0" />
+                <span>
+                  <strong>{latestRing.senderName}</strong> sent a Ring:{" "}
+                  <em className="font-serif">&ldquo;{latestRing.message}&rdquo;</em>
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={dismissRingBanner}
+                className="p-0.5 text-[#596579] hover:text-[#1F2937] cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Mobile bottom tab bar */}

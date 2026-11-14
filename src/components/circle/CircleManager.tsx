@@ -2,15 +2,19 @@
 
 import { useEffect, useState, useCallback } from "react";
 import {
+  BellRing,
   Check,
   Copy,
   KeyRound,
   Loader2,
+  Mail,
   PlusCircle,
   Shield,
   Users,
+  X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import DirectMessageDrawer from "@/components/circle/DirectMessageDrawer";
 
 export interface CircleInfo {
   id: string;
@@ -24,6 +28,14 @@ export interface CircleMemberProfile {
   user_id: string;
   role: "member" | "leader";
   display_name: string;
+}
+
+interface IncomingRing {
+  id: string;
+  sender_id: string;
+  sender_name: string;
+  message: string;
+  created_at: string;
 }
 
 function generateInviteCode(): string {
@@ -51,6 +63,19 @@ export default function CircleManager({
   const [activeCircleId, setActiveCircleId] = useState<string | null>(null);
   const [members, setMembers] = useState<CircleMemberProfile[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // 1-on-1 Direct Message Drawer target
+  const [dmTarget, setDmTarget] = useState<CircleMemberProfile | null>(null);
+
+  // Rings state (24-hour cooldown & incoming notifications)
+  const [sentRingRecipientIds, setSentRingRecipientIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [incomingRings, setIncomingRings] = useState<IncomingRing[]>([]);
+  const [dismissedRingIds, setDismissedRingIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [ringingUserId, setRingingUserId] = useState<string | null>(null);
 
   // Forms
   const [newCircleName, setNewCircleName] = useState("");
@@ -110,7 +135,7 @@ export default function CircleManager({
     setLoading(false);
   }, []);
 
-  const loadMembers = useCallback(
+  const loadMembersAndRings = useCallback(
     async (circleId: string) => {
       const supabase = createClient();
       const { data: memberRows } = await supabase
@@ -143,6 +168,41 @@ export default function CircleManager({
       setMembers(enriched);
       const activeObj = circles.find((c) => c.id === circleId) || null;
       onActiveCircleChange?.(activeObj, enriched, userId);
+
+      // Load rings from the last 24 hours for this circle
+      if (userId) {
+        const since24h = new Date(
+          Date.now() - 24 * 60 * 60 * 1000
+        ).toISOString();
+
+        const { data: ringRows } = await supabase
+          .from("rings")
+          .select("id, sender_id, recipient_id, message, created_at")
+          .eq("circle_id", circleId)
+          .gte("created_at", since24h)
+          .order("created_at", { ascending: false });
+
+        const sentSet = new Set<string>();
+        const incomingList: IncomingRing[] = [];
+
+        for (const r of ringRows || []) {
+          if (r.sender_id === userId) {
+            sentSet.add(r.recipient_id);
+          }
+          if (r.recipient_id === userId) {
+            incomingList.push({
+              id: r.id,
+              sender_id: r.sender_id,
+              sender_name: profileMap.get(r.sender_id) || "A Circle Friend",
+              message: r.message,
+              created_at: r.created_at,
+            });
+          }
+        }
+
+        setSentRingRecipientIds(sentSet);
+        setIncomingRings(incomingList);
+      }
     },
     [circles, onActiveCircleChange, userId]
   );
@@ -156,11 +216,45 @@ export default function CircleManager({
       if (typeof window !== "undefined") {
         localStorage.setItem("active_circle_id", activeCircleId);
       }
-      loadMembers(activeCircleId);
+      loadMembersAndRings(activeCircleId);
     } else {
       onActiveCircleChange?.(null, [], userId);
     }
-  }, [activeCircleId, loadMembers, onActiveCircleChange, userId]);
+  }, [activeCircleId, loadMembersAndRings, onActiveCircleChange, userId]);
+
+  async function handleSendRing(target: CircleMemberProfile) {
+    if (!activeCircleId || !userId) return;
+    setRingingUserId(target.user_id);
+    setFeedback(null);
+
+    const supabase = createClient();
+    try {
+      const { error } = await supabase.from("rings").insert({
+        circle_id: activeCircleId,
+        sender_id: userId,
+        recipient_id: target.user_id,
+        message: "Praying for your time in the Word today",
+      });
+
+      if (error) throw error;
+
+      setSentRingRecipientIds((prev) => new Set(prev).add(target.user_id));
+      setFeedback({
+        type: "success",
+        text: `Sent a gentle Ring to ${target.display_name}: "Praying for your time in the Word today"`,
+      });
+    } catch (err: unknown) {
+      setFeedback({
+        type: "error",
+        text:
+          err instanceof Error
+            ? err.message
+            : "A Ring was already sent within the last 24 hours.",
+      });
+    } finally {
+      setRingingUserId(null);
+    }
+  }
 
   async function handleCreateCircle(e: React.FormEvent) {
     e.preventDefault();
@@ -261,12 +355,15 @@ export default function CircleManager({
       .eq("user_id", member.user_id);
 
     if (!error) {
-      await loadMembers(activeCircleId);
+      await loadMembersAndRings(activeCircleId);
     }
   }
 
   const activeCircle = circles.find((c) => c.id === activeCircleId) || null;
   const isCreator = activeCircle && userId === activeCircle.created_by;
+  const visibleRings = incomingRings.filter(
+    (r) => !dismissedRingIds.has(r.id)
+  );
 
   if (loading) {
     return (
@@ -279,6 +376,42 @@ export default function CircleManager({
 
   return (
     <div className="space-y-6">
+      {/* In-App Notification Banner for Incoming Rings */}
+      {visibleRings.length > 0 && (
+        <div className="space-y-2">
+          {visibleRings.map((ring) => (
+            <div
+              key={ring.id}
+              className="flex items-center justify-between gap-3 p-4 rounded-2xl bg-[#F4F7F5] border border-[#C5D7CC] text-xs text-[#1F2937] shadow-2xs"
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-[#E3EBE6] text-[#4B6F5B] shrink-0">
+                  <BellRing className="w-4 h-4" />
+                </span>
+                <div>
+                  <p className="font-medium text-[#1F2937]">
+                    <strong>{ring.sender_name}</strong> sent you a gentle Ring:
+                  </p>
+                  <p className="font-serif italic text-[#3D5A4A] mt-0.5">
+                    &ldquo;{ring.message}&rdquo;
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setDismissedRingIds((prev) => new Set(prev).add(ring.id))
+                }
+                className="p-1 rounded-lg text-[#596579] hover:text-[#1F2937] cursor-pointer"
+                title="Dismiss notification"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {feedback && (
         <div
           className={`p-3.5 rounded-xl text-xs border ${
@@ -291,7 +424,7 @@ export default function CircleManager({
         </div>
       )}
 
-      {/* Active Circle Header & Invite Code */}
+      {/* Active Circle Top Bar & Member Roster */}
       {activeCircle && (
         <div className="bg-white border border-[#E5E0D8] rounded-2xl p-5 space-y-4 shadow-2xs">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -305,7 +438,8 @@ export default function CircleManager({
                 </span>
               </div>
               <p className="text-xs text-[#596579] mt-0.5">
-                Private invite-only circle • Capped at 12 for genuine fellowship
+                Tap <strong>1-on-1 Message</strong> or <strong>Ring</strong>{" "}
+                (24h cooldown nudge) on any member below.
               </p>
             </div>
 
@@ -355,48 +489,87 @@ export default function CircleManager({
 
             {isCreator && (
               <span className="text-[11px] text-[#596579]">
-                Tip: Click a member&apos;s badge below to toggle optional{" "}
-                <strong>Leader/Pastor</strong> role.
+                Creator option: Toggle optional{" "}
+                <strong>Leader / Pastor</strong> badge on any member.
               </span>
             )}
           </div>
 
-          {/* Member Roster with optional Leader/Pastor role toggle */}
-          <div className="flex flex-wrap gap-2 pt-1">
-            {members.map((m) => (
-              <div
-                key={m.user_id}
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#FAF9F6] border border-[#E5E0D8] text-xs"
-              >
-                <span className="font-medium text-[#1F2937]">
-                  {m.display_name}
-                  {m.user_id === userId ? " (You)" : ""}
-                </span>
-                {m.role === "leader" && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#E3EBE6] text-[#3D5A4A] text-[10px] font-semibold">
-                    <Shield className="w-3 h-3" />
-                    Leader / Pastor
-                  </span>
-                )}
-                {isCreator && (
-                  <button
-                    type="button"
-                    onClick={() => handleToggleLeaderRole(m)}
-                    title="Toggle optional Leader/Pastor badge"
-                    className="text-[10px] text-[#596579] hover:text-[#4B6F5B] underline ml-1 cursor-pointer"
-                  >
-                    {m.role === "leader" ? "Remove badge" : "+ Leader badge"}
-                  </button>
-                )}
-              </div>
-            ))}
+          {/* Member Cards with 1-on-1 DM icon & Ring (24h cooldown) icon */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+            {members.map((m) => {
+              const isSelf = m.user_id === userId;
+              const onCooldown = sentRingRecipientIds.has(m.user_id);
+              const isRinging = ringingUserId === m.user_id;
+
+              return (
+                <div
+                  key={m.user_id}
+                  className="flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-[#FAF9F6] border border-[#E5E0D8] text-xs"
+                >
+                  <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                    <span className="font-semibold text-[#1F2937] truncate">
+                      {m.display_name}
+                      {isSelf ? " (You)" : ""}
+                    </span>
+                    {m.role === "leader" && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#E3EBE6] text-[#3D5A4A] text-[10px] font-semibold">
+                        <Shield className="w-2.5 h-2.5" />
+                        Leader
+                      </span>
+                    )}
+                    {isCreator && (
+                      <button
+                        type="button"
+                        onClick={() => handleToggleLeaderRole(m)}
+                        className="text-[10px] text-[#596579] hover:text-[#4B6F5B] underline cursor-pointer"
+                      >
+                        {m.role === "leader" ? "Remove badge" : "+ Leader"}
+                      </button>
+                    )}
+                  </div>
+
+                  {!isSelf && (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setDmTarget(m)}
+                        title={`1-on-1 Direct Message with ${m.display_name}`}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-[#E5E0D8] hover:border-[#4B6F5B] text-[#1F2937] text-[11px] font-medium transition-colors cursor-pointer"
+                      >
+                        <Mail className="w-3.5 h-3.5 text-[#4B6F5B]" />
+                        <span>DM</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={onCooldown || isRinging}
+                        onClick={() => handleSendRing(m)}
+                        title={
+                          onCooldown
+                            ? "Ring already sent within the last 24 hours"
+                            : `Send gentle nudge: "Praying for your time in the Word today"`
+                        }
+                        className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-colors cursor-pointer ${
+                          onCooldown
+                            ? "bg-[#E3EBE6] border-[#C5D7CC] text-[#3D5A4A] opacity-75 cursor-not-allowed"
+                            : "bg-white border-[#E5E0D8] hover:border-[#4B6F5B] text-[#1F2937]"
+                        }`}
+                      >
+                        <BellRing className="w-3.5 h-3.5 text-[#4B6F5B]" />
+                        <span>{onCooldown ? "Rung (24h)" : "Ring"}</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
 
       {/* Join or Create Circle Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Join by Invite Code */}
         <form
           onSubmit={handleJoinByCode}
           className="bg-white border border-[#E5E0D8] rounded-2xl p-5 space-y-3 shadow-2xs"
@@ -429,7 +602,6 @@ export default function CircleManager({
           </div>
         </form>
 
-        {/* Create New Circle */}
         <form
           onSubmit={handleCreateCircle}
           className="bg-white border border-[#E5E0D8] rounded-2xl p-5 space-y-3 shadow-2xs"
@@ -467,6 +639,16 @@ export default function CircleManager({
           </button>
         </form>
       </div>
+
+      {/* 1-on-1 Direct Message Drawer */}
+      {activeCircle && userId && dmTarget && (
+        <DirectMessageDrawer
+          circle={activeCircle}
+          currentUserId={userId}
+          recipient={dmTarget}
+          onClose={() => setDmTarget(null)}
+        />
+      )}
     </div>
   );
 }
