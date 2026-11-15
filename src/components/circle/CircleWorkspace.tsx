@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import {
-  ArrowLeft,
   BellRing,
   BookOpen,
   Loader2,
@@ -286,6 +285,52 @@ export default function CircleWorkspace() {
     loadInboxData();
   }, [loadInboxData]);
 
+  // Subscribe to Supabase Realtime on messages & rings for live Inbox & Ring updates
+  useEffect(() => {
+    if (!activeCircleId || !userId) return;
+    const supabase = createClient();
+
+    const channel = supabase
+      .channel(`circle-inbox-${activeCircleId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `circle_id=eq.${activeCircleId}`,
+        },
+        () => {
+          loadInboxData(activeCircleId);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "rings",
+          filter: `circle_id=eq.${activeCircleId}`,
+        },
+        (payload) => {
+          const newRing = payload.new as {
+            sender_id: string;
+            recipient_id: string;
+            message: string;
+          };
+          if (newRing.recipient_id === userId) {
+            showToast(`Received a gentle Ring: "${newRing.message}"`);
+          }
+          loadInboxData(activeCircleId);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeCircleId, userId, loadInboxData]);
+
   async function handleSendRing(target: CircleMemberProfile) {
     if (!activeCircleId || !userId) return;
     if (rungMemberIds.has(target.user_id)) {
@@ -347,23 +392,16 @@ export default function CircleWorkspace() {
 
   if (activeView === "group-chat" && userId) {
     return (
-      <div className="space-y-4">
-        <button
-          type="button"
-          onClick={() => {
-            setActiveView("inbox");
-            loadInboxData(activeCircle.id);
-          }}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] text-xs font-medium text-[#1F2937] cursor-pointer"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Back to Circles Inbox</span>
-        </button>
-
+      <div className="space-y-3">
         <CircleFeed
           circle={activeCircle}
           members={members}
           currentUserId={userId}
+          onBack={() => {
+            setActiveView("inbox");
+            loadInboxData(activeCircle.id);
+          }}
+          onSelectMember={(m) => setDrawerMember(m)}
         />
       </div>
     );
@@ -757,6 +795,7 @@ export default function CircleWorkspace() {
             setDmTarget(null);
             loadInboxData(activeCircle.id);
           }}
+          onOpenMemberCard={(m) => setDrawerMember(m)}
         />
       )}
     </div>

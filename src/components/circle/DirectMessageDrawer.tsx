@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { Loader2, Lock, Send, Shield, X } from "lucide-react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { BellRing, ChevronLeft, Loader2, Lock, Send } from "lucide-react";
+import { getInitials } from "@/components/ui/Navbar";
 import { createClient } from "@/lib/supabase/client";
 import type {
   CircleInfo,
@@ -22,6 +23,7 @@ interface DirectMessageDrawerProps {
   currentUserId: string;
   recipient: CircleMemberProfile;
   onClose: () => void;
+  onOpenMemberCard?: (member: CircleMemberProfile) => void;
 }
 
 export default function DirectMessageDrawer({
@@ -29,35 +31,99 @@ export default function DirectMessageDrawer({
   currentUserId,
   recipient,
   onClose,
+  onOpenMemberCard,
 }: DirectMessageDrawerProps) {
   const [messages, setMessages] = useState<DirectMessageRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [isRung, setIsRung] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToBottom = useCallback(() => {
+    setTimeout(() => {
+      if (scrollerRef.current) {
+        scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight;
+      }
+    }, 40);
+  }, []);
 
   const loadDMs = useCallback(async () => {
     const supabase = createClient();
-    const { data, error: fetchError } = await supabase
-      .from("messages")
-      .select("id, circle_id, sender_id, recipient_id, content, created_at")
-      .eq("circle_id", circle.id)
-      .not("recipient_id", "is", null)
-      .or(
-        `and(sender_id.eq.${currentUserId},recipient_id.eq.${recipient.user_id}),and(sender_id.eq.${recipient.user_id},recipient_id.eq.${currentUserId})`
-      )
-      .order("created_at", { ascending: true });
+    const since10m = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+
+    const [{ data, error: fetchError }, { data: ringData }] = await Promise.all(
+      [
+        supabase
+          .from("messages")
+          .select("id, circle_id, sender_id, recipient_id, content, created_at")
+          .eq("circle_id", circle.id)
+          .not("recipient_id", "is", null)
+          .or(
+            `and(sender_id.eq.${currentUserId},recipient_id.eq.${recipient.user_id}),and(sender_id.eq.${recipient.user_id},recipient_id.eq.${currentUserId})`
+          )
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("rings")
+          .select("id")
+          .eq("circle_id", circle.id)
+          .eq("sender_id", currentUserId)
+          .eq("recipient_id", recipient.user_id)
+          .gte("created_at", since10m)
+          .limit(1),
+      ]
+    );
 
     if (!fetchError && data) {
       setMessages(data);
+      scrollToBottom();
     }
+    setIsRung(Boolean(ringData && ringData.length > 0));
     setLoading(false);
-  }, [circle.id, currentUserId, recipient.user_id]);
+  }, [circle.id, currentUserId, recipient.user_id, scrollToBottom]);
 
   useEffect(() => {
     setLoading(true);
     loadDMs();
   }, [loadDMs]);
+
+  // Live Supabase Realtime Subscription for 1-on-1 DMs
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`dm-${circle.id}-${currentUserId}-${recipient.user_id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `circle_id=eq.${circle.id}`,
+        },
+        (payload) => {
+          const newMsg = payload.new as DirectMessageRow;
+          const isThisPair =
+            (newMsg.sender_id === currentUserId &&
+              newMsg.recipient_id === recipient.user_id) ||
+            (newMsg.sender_id === recipient.user_id &&
+              newMsg.recipient_id === currentUserId);
+
+          if (!isThisPair) return;
+
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            return [...prev, newMsg];
+          });
+          scrollToBottom();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [circle.id, currentUserId, recipient.user_id, scrollToBottom]);
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
@@ -68,19 +134,28 @@ export default function DirectMessageDrawer({
     const supabase = createClient();
 
     try {
-      const { error: insertError } = await supabase.from("messages").insert({
-        circle_id: circle.id,
-        sender_id: currentUserId,
-        recipient_id: recipient.user_id,
-        parent_id: null,
-        content: text.trim(),
-        image_url: null,
-      });
+      const { data: inserted, error: insertError } = await supabase
+        .from("messages")
+        .insert({
+          circle_id: circle.id,
+          sender_id: currentUserId,
+          recipient_id: recipient.user_id,
+          parent_id: null,
+          content: text.trim(),
+          image_url: null,
+        })
+        .select("id, circle_id, sender_id, recipient_id, content, created_at")
+        .single();
 
       if (insertError) throw insertError;
 
+      if (inserted) {
+        setMessages((prev) =>
+          prev.some((m) => m.id === inserted.id) ? prev : [...prev, inserted]
+        );
+        scrollToBottom();
+      }
       setText("");
-      await loadDMs();
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : "Could not send direct message."
@@ -90,49 +165,110 @@ export default function DirectMessageDrawer({
     }
   }
 
+  async function handleQuickRing() {
+    if (isRung) return;
+    const supabase = createClient();
+    const { error: ringError } = await supabase.from("rings").insert({
+      circle_id: circle.id,
+      sender_id: currentUserId,
+      recipient_id: recipient.user_id,
+      message: "Praying for your time in the Word today",
+    });
+    if (!ringError) {
+      setIsRung(true);
+    }
+  }
+
+  const shortName = recipient.display_name.split(" ")[0];
+
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/25 backdrop-blur-[1px]">
-      <div className="w-full max-w-md bg-[#FAF9F6] h-full shadow-xl border-l border-[#E5E0D8] flex flex-col">
-        {/* Header */}
-        <div className="p-4 sm:p-5 bg-white border-b border-[#E5E0D8] flex items-center justify-between">
-          <div>
-            <span className="inline-flex items-center gap-1 text-[11px] uppercase tracking-wider text-[#4B6F5B] font-semibold">
-              <Lock className="w-3 h-3" />
-              1-on-1 Fellowship • {circle.name}
-            </span>
-            <div className="flex items-center gap-2 mt-0.5">
-              <h3 className="text-lg font-serif font-semibold text-[#1F2937]">
-                {recipient.display_name}
-              </h3>
-              {recipient.role === "leader" && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#E3EBE6] text-[#3D5A4A] text-[10px] font-semibold">
-                  <Shield className="w-2.5 h-2.5" />
-                  Leader / Pastor
-                </span>
-              )}
-            </div>
+    <div className="fixed inset-0 z-40 bg-[#FAF9F6] flex flex-col pb-16">
+      <div className="max-w-xl w-full mx-auto flex-1 flex flex-col min-h-0">
+        {/* Top 1-on-1 DM Header matching docs/ui-reference.html */}
+        <div className="px-4 py-3 bg-[#FAF9F6] border-b border-[#E6E1D6] flex items-center justify-between gap-2 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Back to Circles"
+              className="w-8 h-8 rounded-full hover:bg-[#F4F1EA] flex items-center justify-center text-[#1F2937] shrink-0 cursor-pointer"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onOpenMemberCard?.(recipient)}
+              className="flex items-center gap-2.5 text-left min-w-0 group cursor-pointer"
+            >
+              <div className="w-9 h-9 rounded-full overflow-hidden bg-[#DDE6E1] text-[#4A6B5D] flex items-center justify-center text-xs font-semibold shrink-0">
+                {recipient.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={recipient.avatar_url}
+                    alt={recipient.display_name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  getInitials(recipient.display_name)
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[14px] font-semibold text-[#1F2937] truncate group-hover:text-[#4A6B5D]">
+                    {recipient.display_name}
+                  </span>
+                  {recipient.role === "leader" && (
+                    <span className="px-1.5 py-[1px] rounded text-[9.5px] font-semibold bg-[#EBF1EE] text-[#4A6B5D]">
+                      Leader
+                    </span>
+                  )}
+                </div>
+                <p className="text-[10.5px] text-[#6B7280]">
+                  Tap for shared notes
+                </p>
+              </div>
+            </button>
           </div>
 
+          {/* Quick Ring Bell Button (10m cooldown) */}
           <button
             type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-[#596579] hover:text-[#1F2937] hover:bg-[#F3EFEA] cursor-pointer"
+            disabled={isRung}
+            onClick={handleQuickRing}
+            className={`px-2.5 py-1.5 rounded-xl border text-xs font-medium flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer ${
+              isRung
+                ? "bg-[#F4F1EA] border-[#E6E1D6] text-[#6B7280]"
+                : "bg-[#FBF5EE] border-[#E7D3BC] text-[#B47B44] hover:bg-[#F6EAD9]"
+            }`}
           >
-            <X className="w-5 h-5" />
+            <BellRing className="w-3.5 h-3.5" />
+            <span>{isRung ? "Rung" : "Ring"}</span>
           </button>
         </div>
 
-        {/* Message List */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3">
+        {/* Subtle Privacy Banner */}
+        <div className="px-4 py-2 bg-[#F4F1EA] border-b border-[#E6E1D6] flex items-center justify-center gap-1.5 text-[11px] text-[#6B7280] shrink-0">
+          <Lock className="w-3.5 h-3.5 text-[#4A6B5D] shrink-0" />
+          <span className="truncate">
+            Private 1-on-1 conversation · Only visible to you and {shortName}
+          </span>
+        </div>
+
+        {/* Scrollable DM Messages */}
+        <div
+          ref={scrollerRef}
+          className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
+        >
           {loading ? (
-            <div className="py-12 flex items-center justify-center text-xs text-[#596579]">
+            <div className="py-12 flex items-center justify-center text-xs text-[#6B7280]">
               <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              Loading private conversation...
+              Loading conversation...
             </div>
           ) : messages.length === 0 ? (
-            <div className="p-6 text-center rounded-xl bg-white border border-[#E5E0D8] text-xs text-[#596579]">
-              No private messages with {recipient.display_name} yet. Send a
-              quiet word of encouragement or prayer request below.
+            <div className="p-6 text-center rounded-2xl bg-white border border-[#E6E1D6] text-xs text-[#6B7280]">
+              No messages with {shortName} yet. Send a quiet word of
+              encouragement below.
             </div>
           ) : (
             messages.map((m) => {
@@ -145,18 +281,16 @@ export default function DirectMessageDrawer({
                   }`}
                 >
                   <div
-                    className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs leading-relaxed ${
+                    className={`max-w-[80%] px-3.5 py-2.5 rounded-2xl text-[13px] leading-relaxed ${
                       isMine
-                        ? "bg-[#4B6F5B] text-white"
-                        : "bg-white border border-[#E5E0D8] text-[#1F2937]"
+                        ? "bg-[#4A6B5D] text-white rounded-br-sm"
+                        : "bg-white border border-[#E6E1D6] text-[#1F2937] rounded-bl-sm"
                     }`}
                   >
                     <p className="whitespace-pre-wrap">{m.content}</p>
                   </div>
-                  <span className="text-[10px] text-[#596579] mt-1 px-1">
-                    {new Date(m.created_at).toLocaleTimeString(undefined, {
-                      month: "short",
-                      day: "numeric",
+                  <span className="text-[10px] text-[#6B7280] mt-1 px-1">
+                    {new Date(m.created_at).toLocaleTimeString([], {
                       hour: "numeric",
                       minute: "2-digit",
                     })}
@@ -167,38 +301,36 @@ export default function DirectMessageDrawer({
           )}
         </div>
 
-        {/* Compose Form */}
+        {error && (
+          <div className="px-4 py-1.5 bg-red-50 text-xs text-red-600 text-center">
+            {error}
+          </div>
+        )}
+
+        {/* DM Reply Input Bar */}
         <form
           onSubmit={handleSend}
-          className="p-4 bg-white border-t border-[#E5E0D8] space-y-2"
+          className="px-4 py-3 bg-[#FAF9F6] border-t border-[#E6E1D6] flex items-center gap-2 shrink-0"
         >
-          {error && (
-            <p className="text-xs text-red-600 bg-red-50 p-2 rounded-lg">
-              {error}
-            </p>
-          )}
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              required
-              placeholder={`Message ${recipient.display_name}...`}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              className="flex-1 px-3.5 py-2.5 rounded-xl border border-[#E5E0D8] bg-[#FAF9F6] text-xs text-[#1F2937] focus:outline-none focus:border-[#4B6F5B]"
-            />
-            <button
-              type="submit"
-              disabled={sending || !text.trim()}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#4B6F5B] hover:bg-[#3D5A4A] disabled:opacity-50 text-white text-xs font-medium transition-colors cursor-pointer"
-            >
-              {sending ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Send className="w-3.5 h-3.5" />
-              )}
-              <span>Send</span>
-            </button>
-          </div>
+          <input
+            type="text"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={`Message ${shortName}...`}
+            className="flex-1 bg-white border border-[#E6E1D6] rounded-full px-4 py-2 text-[13px] text-[#1F2937] placeholder-[#6B7280] focus:outline-none focus:border-[#4A6B5D]"
+          />
+          <button
+            type="submit"
+            disabled={sending || !text.trim()}
+            aria-label="Send direct message"
+            className="w-9 h-9 rounded-full bg-[#4A6B5D] hover:bg-[#3D5A4E] disabled:opacity-50 text-white flex items-center justify-center shrink-0 transition-colors cursor-pointer"
+          >
+            {sending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+          </button>
         </form>
       </div>
     </div>
