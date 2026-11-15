@@ -37,6 +37,8 @@ export type Database = {
           invite_code: string;
           created_by: string;
           max_members: number;
+          avatar_url: string | null;
+          shared_plan_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -45,6 +47,8 @@ export type Database = {
           invite_code: string;
           created_by: string;
           max_members?: number;
+          avatar_url?: string | null;
+          shared_plan_id?: string | null;
           created_at?: string;
         };
         Update: {
@@ -53,6 +57,8 @@ export type Database = {
           invite_code?: string;
           created_by?: string;
           max_members?: number;
+          avatar_url?: string | null;
+          shared_plan_id?: string | null;
           created_at?: string;
         };
         Relationships: [];
