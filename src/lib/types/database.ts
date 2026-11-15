@@ -150,6 +150,7 @@ export type Database = {
           parent_id: string | null;
           content: string;
           image_url: string | null;
+          ocr_text: string | null;
           created_at: string;
         };
         Insert: {
@@ -160,6 +161,7 @@ export type Database = {
           parent_id?: string | null;
           content: string;
           image_url?: string | null;
+          ocr_text?: string | null;
           created_at?: string;
         };
         Update: {
@@ -170,6 +172,7 @@ export type Database = {
           parent_id?: string | null;
           content?: string;
           image_url?: string | null;
+          ocr_text?: string | null;
           created_at?: string;
         };
         Relationships: [];
@@ -276,6 +279,63 @@ export type Database = {
         };
         Relationships: [];
       };
+      circle_docs: {
+        Row: {
+          id: string;
+          circle_id: string;
+          title: string;
+          content: string;
+          updated_by: string | null;
+          updated_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          circle_id: string;
+          title: string;
+          content?: string;
+          updated_by?: string | null;
+          updated_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          circle_id?: string;
+          title?: string;
+          content?: string;
+          updated_by?: string | null;
+          updated_at?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      push_subscriptions: {
+        Row: {
+          id: string;
+          user_id: string;
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          endpoint?: string;
+          p256dh?: string;
+          auth?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -288,6 +348,10 @@ export type Database = {
       join_circle_by_code: {
         Args: { code: string };
         Returns: { circle_id: string; name: string; already_member?: boolean };
+      };
+      get_ring_push_subscriptions: {
+        Args: { p_circle_id: string; p_recipient_id: string };
+        Returns: { endpoint: string; p256dh: string; auth: string }[];
       };
     };
     Enums: {
