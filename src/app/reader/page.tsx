@@ -15,6 +15,9 @@ import Navbar from "@/components/ui/Navbar";
 import VerseNotesDrawer, {
   type EnrichedVerseNote,
 } from "@/components/reader/VerseNotesDrawer";
+import ReaderSelectorSheet, {
+  type ReaderSelectorType,
+} from "@/components/reader/ReaderSelectorSheet";
 import {
   BIBLE_TRANSLATIONS,
   DEFAULT_TRANSLATION,
@@ -91,8 +94,12 @@ function ReaderContent() {
   }>({ completed: false, physical: false });
   const [savingCompletion, setSavingCompletion] = useState(false);
 
-  // Selected verse for Drawer
+  // Selected verse for Drawer & active selector sheet
   const [selectedVerse, setSelectedVerse] = useState<BibleVerse | null>(null);
+  const [openSelector, setOpenSelector] = useState<ReaderSelectorType | null>(
+    null
+  );
+  const closeSelector = useCallback(() => setOpenSelector(null), []);
 
   // Sync URL query params if changed externally
   useEffect(() => {
@@ -308,7 +315,7 @@ function ReaderContent() {
     <main className="flex-1 max-w-xl w-full mx-auto px-4 pt-4 pb-36 space-y-5">
       {/* Centered Compact Top Navigation Bar & Translation Selector */}
       <div className="flex flex-wrap items-center justify-center gap-2">
-        <div className="inline-flex items-center gap-1.5 bg-white border border-[#E6E1D6] rounded-full p-1.5 shadow-2xs">
+        <div className="inline-flex items-center gap-1 bg-white border border-[#E6E1D6] rounded-full p-1.5 shadow-2xs">
           <button
             type="button"
             onClick={goPrevChapter}
@@ -318,36 +325,31 @@ function ReaderContent() {
             <ChevronLeft className="w-4 h-4" />
           </button>
 
-          <select
-            value={book}
-            onChange={(e) => navigateTo(e.target.value, 1)}
+          <button
+            type="button"
+            onClick={() => setOpenSelector("book")}
             aria-label="Select Book"
-            className="px-2.5 py-1 rounded-full bg-transparent text-xs font-semibold text-[#1F2937] focus:outline-none cursor-pointer"
+            aria-haspopup="dialog"
+            aria-expanded={openSelector === "book"}
+            className="px-2.5 py-1.5 rounded-full hover:bg-[#F4F1EA] text-xs font-semibold text-[#1F2937] inline-flex items-center gap-1 transition-colors cursor-pointer"
           >
-            {BIBLE_BOOKS.map((b) => (
-              <option key={b.name} value={b.name}>
-                {b.name}
-              </option>
-            ))}
-          </select>
+            <span>{book}</span>
+            <ChevronDown className="w-3 h-3 opacity-60" />
+          </button>
 
           <span className="text-[#E6E1D6]">·</span>
 
-          <select
-            value={chapter}
-            onChange={(e) => navigateTo(book, Number(e.target.value))}
+          <button
+            type="button"
+            onClick={() => setOpenSelector("chapter")}
             aria-label="Select Chapter"
-            className="px-2.5 py-1 rounded-full bg-transparent text-xs font-semibold text-[#4A6B5D] focus:outline-none cursor-pointer"
+            aria-haspopup="dialog"
+            aria-expanded={openSelector === "chapter"}
+            className="px-2.5 py-1.5 rounded-full hover:bg-[#F4F1EA] text-xs font-semibold text-[#4A6B5D] inline-flex items-center gap-1 transition-colors cursor-pointer"
           >
-            {Array.from(
-              { length: currentBookMeta.chapters },
-              (_, i) => i + 1
-            ).map((ch) => (
-              <option key={ch} value={ch}>
-                Ch. {ch}
-              </option>
-            ))}
-          </select>
+            <span>Ch. {chapter}</span>
+            <ChevronDown className="w-3 h-3 opacity-70" />
+          </button>
 
           <button
             type="button"
@@ -360,23 +362,20 @@ function ReaderContent() {
         </div>
 
         {/* Centered Translation Selector Pill */}
-        <div className="relative inline-flex items-center bg-white border border-[#E6E1D6] rounded-full shadow-2xs">
-          <select
-            value={translation}
-            onChange={(e) =>
-              handleTranslationChange(e.target.value as BibleTranslationId)
-            }
-            aria-label="Select Bible Translation"
-            className="appearance-none bg-transparent pl-3.5 pr-7 py-2 text-xs font-semibold text-[#4A6B5D] focus:outline-none cursor-pointer rounded-full"
-          >
-            {BIBLE_TRANSLATIONS.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.shortLabel}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="w-3.5 h-3.5 text-[#4A6B5D] pointer-events-none absolute right-2.5" />
-        </div>
+        <button
+          type="button"
+          onClick={() => setOpenSelector("translation")}
+          aria-label="Select Bible Translation"
+          aria-haspopup="dialog"
+          aria-expanded={openSelector === "translation"}
+          className="inline-flex items-center gap-1.5 bg-white border border-[#E6E1D6] hover:bg-[#F4F1EA] rounded-full px-3.5 py-2 text-xs font-semibold text-[#4A6B5D] shadow-2xs transition-colors cursor-pointer"
+        >
+          <span>
+            {BIBLE_TRANSLATIONS.find((t) => t.id === translation)?.shortLabel ||
+              translation}
+          </span>
+          <ChevronDown className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       {/* Chapter Title Banner */}
@@ -473,6 +472,19 @@ function ReaderContent() {
           </button>
         </div>
       </div>
+
+      {/* Custom Dark-Mode Selector Drawer for Book / Chapter / Version */}
+      <ReaderSelectorSheet
+        openSelector={openSelector}
+        book={book}
+        chapter={chapter}
+        totalChapters={currentBookMeta.chapters}
+        translation={translation}
+        onSelectBook={(nextBook) => navigateTo(nextBook, 1)}
+        onSelectChapter={(nextChapter) => navigateTo(book, nextChapter)}
+        onSelectTranslation={handleTranslationChange}
+        onClose={closeSelector}
+      />
 
       {/* Verse-Anchored Notes Drawer */}
       {selectedVerse && (
