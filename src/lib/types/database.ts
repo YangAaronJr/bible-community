@@ -201,6 +201,81 @@ export type Database = {
         };
         Relationships: [];
       };
+      prayer_requests: {
+        Row: {
+          id: string;
+          circle_id: string;
+          user_id: string;
+          content: string;
+          is_answered: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          circle_id: string;
+          user_id: string;
+          content: string;
+          is_answered?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          circle_id?: string;
+          user_id?: string;
+          content?: string;
+          is_answered?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      prayer_responses: {
+        Row: {
+          prayer_id: string;
+          user_id: string;
+          created_at: string;
+        };
+        Insert: {
+          prayer_id: string;
+          user_id: string;
+          created_at?: string;
+        };
+        Update: {
+          prayer_id?: string;
+          user_id?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      custom_schedules: {
+        Row: {
+          id: string;
+          user_id: string;
+          title: string;
+          rest_days: number[];
+          schedule_items: Json;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          title: string;
+          rest_days?: number[];
+          schedule_items?: Json;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          title?: string;
+          rest_days?: number[];
+          schedule_items?: Json;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
