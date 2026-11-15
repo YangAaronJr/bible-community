@@ -1,0 +1,450 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import {
+  BookOpen,
+  Camera,
+  Check,
+  ChevronLeft,
+  Copy,
+  Loader2,
+  RefreshCw,
+} from "lucide-react";
+import { getInitials } from "@/components/ui/Navbar";
+import { READING_PLAN_PRESETS } from "@/lib/plans/reading-plans";
+import { createClient } from "@/lib/supabase/client";
+
+interface CircleSettingsData {
+  id: string;
+  name: string;
+  invite_code: string;
+  avatar_url: string | null;
+  shared_plan_id: string | null;
+}
+
+export default function CircleSettingsView({
+  circleId,
+}: {
+  circleId: string;
+}) {
+  const [userId, setUserId] = useState<string | null>(null);
+  const [circle, setCircle] = useState<CircleSettingsData | null>(null);
+  const [nameInput, setNameInput] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [sharedPlanId, setSharedPlanId] = useState<string>("");
+  const [myPlanSynced, setMyPlanSynced] = useState(false);
+
+  const [loading, setLoading] = useState(true);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [savingName, setSavingName] = useState(false);
+  const [savingPlan, setSavingPlan] = useState(false);
+  const [syncingMyPlan, setSyncingMyPlan] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [feedback, setFeedback] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+
+  const loadCircleSettings = useCallback(async () => {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    setUserId(user.id);
+
+    const [{ data: membership }, { data: circleRow }, { data: activeCustom }] =
+      await Promise.all([
+        supabase
+          .from("circle_members")
+          .select("circle_id")
+          .eq("circle_id", circleId)
+          .eq("user_id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("circles")
+          .select("id, name, invite_code, avatar_url, shared_plan_id")
+          .eq("id", circleId)
+          .maybeSingle(),
+        supabase
+          .from("custom_schedules")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("is_active", true)
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+    if (!membership || !circleRow) {
+      setCircle(null);
+      setLoading(false);
+      return;
+    }
+
+    setCircle(circleRow);
+    setNameInput(circleRow.name);
+    setAvatarUrl(circleRow.avatar_url);
+    const planVal = circleRow.shared_plan_id || "";
+    setSharedPlanId(planVal);
+
+    if (typeof window !== "undefined" && planVal) {
+      const localPlan = localStorage.getItem("selected_reading_plan");
+      setMyPlanSynced(!activeCustom && localPlan === planVal);
+    } else {
+      setMyPlanSynced(false);
+    }
+
+    setLoading(false);
+  }, [circleId]);
+
+  useEffect(() => {
+    loadCircleSettings();
+  }, [loadCircleSettings]);
+
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !circle) return;
+
+    setUploadingAvatar(true);
+    setFeedback(null);
+    const supabase = createClient();
+
+    try {
+      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const filePath = `${circle.id}/avatar-${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("circle-avatars")
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("circle-avatars").getPublicUrl(filePath);
+
+      const { error: updateError } = await supabase
+        .from("circles")
+        .update({ avatar_url: publicUrl })
+        .eq("id", circle.id);
+
+      if (updateError) throw updateError;
+
+      setAvatarUrl(publicUrl);
+      setCircle((prev) => (prev ? { ...prev, avatar_url: publicUrl } : prev));
+      setFeedback({ type: "success", text: "Circle photo updated." });
+    } catch (err: unknown) {
+      setFeedback({
+        type: "error",
+        text:
+          err instanceof Error
+            ? err.message
+            : "Could not upload circle photo.",
+      });
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
+  async function handleSaveName(e: React.FormEvent) {
+    e.preventDefault();
+    if (!circle || !nameInput.trim()) return;
+    setSavingName(true);
+    setFeedback(null);
+
+    const supabase = createClient();
+    const trimmed = nameInput.trim();
+    const { error } = await supabase
+      .from("circles")
+      .update({ name: trimmed })
+      .eq("id", circle.id);
+
+    setSavingName(false);
+    if (error) {
+      setFeedback({ type: "error", text: error.message });
+    } else {
+      setCircle((prev) => (prev ? { ...prev, name: trimmed } : prev));
+      setFeedback({ type: "success", text: "Circle name saved." });
+    }
+  }
+
+  async function handleSharedPlanChange(nextPlanId: string) {
+    if (!circle) return;
+    setSharedPlanId(nextPlanId);
+    setSavingPlan(true);
+    setFeedback(null);
+
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("circles")
+      .update({ shared_plan_id: nextPlanId || null })
+      .eq("id", circle.id);
+
+    setSavingPlan(false);
+    if (error) {
+      setFeedback({ type: "error", text: error.message });
+      return;
+    }
+
+    setCircle((prev) =>
+      prev ? { ...prev, shared_plan_id: nextPlanId || null } : prev
+    );
+    const localPlan =
+      typeof window !== "undefined"
+        ? localStorage.getItem("selected_reading_plan")
+        : null;
+    setMyPlanSynced(Boolean(nextPlanId && localPlan === nextPlanId));
+    setFeedback({
+      type: "success",
+      text: nextPlanId
+        ? "Shared reading plan updated."
+        : "Shared reading plan cleared.",
+    });
+  }
+
+  async function handleSyncMyPlan() {
+    if (!userId || !sharedPlanId) return;
+    setSyncingMyPlan(true);
+    setFeedback(null);
+
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("selected_reading_plan", sharedPlanId);
+      }
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("custom_schedules")
+        .update({ is_active: false })
+        .eq("user_id", userId);
+
+      if (error) throw error;
+
+      setMyPlanSynced(true);
+      const title =
+        READING_PLAN_PRESETS.find((p) => p.id === sharedPlanId)?.title ||
+        sharedPlanId;
+      setFeedback({
+        type: "success",
+        text: `Synced your reading plan to ${title}.`,
+      });
+    } catch (err: unknown) {
+      setFeedback({
+        type: "error",
+        text:
+          err instanceof Error ? err.message : "Could not sync reading plan.",
+      });
+    } finally {
+      setSyncingMyPlan(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="p-8 bg-white border border-[#E6E1D6] rounded-2xl flex items-center justify-center text-xs text-[#6B7280]">
+        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+        Loading circle settings...
+      </div>
+    );
+  }
+
+  if (!circle) {
+    return (
+      <div className="bg-white border border-[#E6E1D6] rounded-2xl p-6 text-center space-y-3">
+        <p className="font-editorial text-lg font-medium text-[#1F2937]">
+          Circle Not Found
+        </p>
+        <p className="text-xs text-[#6B7280]">
+          You may not be a member of this circle.
+        </p>
+        <Link
+          href="/circle"
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] dark:bg-[#63826A] dark:hover:bg-[#7C9A82] text-white text-xs font-medium transition-colors"
+        >
+          <ChevronLeft className="w-3.5 h-3.5" />
+          <span>Back to Circles</span>
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Link
+            href={`/circles/${circle.id}`}
+            aria-label="Back to Circle"
+            className="w-9 h-9 rounded-full bg-[#F4F1EA] border border-[#E6E1D6] flex items-center justify-center text-[#1F2937] hover:bg-[#EAE5DA] transition-colors shrink-0"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </Link>
+          <h1 className="font-editorial text-[26px] leading-none font-medium text-[#1F2937] tracking-tight truncate">
+            Circle Settings
+          </h1>
+        </div>
+      </div>
+
+      {feedback && (
+        <div
+          className={`px-4 py-2.5 rounded-2xl text-xs font-medium border ${
+            feedback.type === "success"
+              ? "bg-[#EBF1EE] border-[#CFE0D6] text-[#3D5A4E]"
+              : "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300"
+          }`}
+        >
+          {feedback.text}
+        </div>
+      )}
+
+      {/* 1. Circle Avatar & Name */}
+      <section className="bg-white border border-[#E6E1D6] rounded-2xl p-5 space-y-4">
+        <div className="flex items-center gap-4">
+          <label className="relative cursor-pointer group shrink-0">
+            <div className="w-16 h-16 rounded-full overflow-hidden ring-2 ring-[#E6E1D6] dark:ring-[#2E2E2B] group-hover:ring-[#4A6B5D] bg-[#DDE6E1] dark:bg-[#212B25] text-[#4A6B5D] flex items-center justify-center font-editorial text-lg font-semibold transition-all">
+              {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={avatarUrl}
+                  alt={circle.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                getInitials(circle.name)
+              )}
+            </div>
+            <span className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-[#4A6B5D] dark:bg-[#63826A] text-white flex items-center justify-center shadow-xs">
+              {uploadingAvatar ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Camera className="w-3 h-3" />
+              )}
+            </span>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarUpload}
+              disabled={uploadingAvatar}
+              className="hidden"
+            />
+          </label>
+
+          <div className="min-w-0 flex-1">
+            <p className="font-editorial text-lg font-medium text-[#1F2937] truncate">
+              {circle.name}
+            </p>
+            <p className="text-[11px] text-[#4A6B5D] font-medium mt-0.5">
+              Tap avatar to upload circle photo
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSaveName} className="flex gap-2 pt-1">
+          <input
+            type="text"
+            required
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+            placeholder="Circle name"
+            className="flex-1 px-3.5 py-2 rounded-xl border border-[#E6E1D6] bg-[#FAF9F6] text-xs text-[#1F2937] focus:outline-none focus:border-[#4A6B5D]"
+          />
+          <button
+            type="submit"
+            disabled={savingName || !nameInput.trim()}
+            className="px-4 py-2 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] dark:bg-[#63826A] dark:hover:bg-[#7C9A82] text-white text-xs font-medium transition-colors cursor-pointer disabled:opacity-60"
+          >
+            {savingName ? "Saving..." : "Save"}
+          </button>
+        </form>
+      </section>
+
+      {/* 2. Invite Code */}
+      <section className="bg-white border border-[#E6E1D6] rounded-2xl p-5 space-y-3">
+        <span className="block text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]">
+          Circle Invite Code
+        </span>
+        <div className="flex items-center justify-between bg-[#F4F1EA] border border-[#E6E1D6] rounded-xl px-3.5 py-2.5">
+          <span className="font-mono text-sm font-semibold tracking-widest text-[#1F2937]">
+            {circle.invite_code}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              navigator.clipboard.writeText(circle.invite_code);
+              setCopiedCode(true);
+              setTimeout(() => setCopiedCode(false), 2000);
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-[#E6E1D6] text-xs font-semibold text-[#4A6B5D] hover:bg-[#EBF1EE] transition-colors cursor-pointer"
+          >
+            {copiedCode ? (
+              <>
+                <Check className="w-3.5 h-3.5" />
+                <span>Copied</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5" />
+                <span>Copy Code</span>
+              </>
+            )}
+          </button>
+        </div>
+      </section>
+
+      {/* 3. Shared Reading Plan */}
+      <section className="bg-white border border-[#E6E1D6] rounded-2xl p-5 space-y-3.5">
+        <div className="flex items-center gap-2">
+          <BookOpen className="w-4 h-4 text-[#4A6B5D]" />
+          <h2 className="font-editorial text-base font-semibold text-[#1F2937]">
+            Shared Reading Plan
+          </h2>
+        </div>
+
+        <select
+          value={sharedPlanId}
+          disabled={savingPlan}
+          onChange={(e) => handleSharedPlanChange(e.target.value)}
+          className="w-full px-3.5 py-2.5 rounded-xl border border-[#E6E1D6] bg-[#FAF9F6] dark:bg-[#141413] text-xs font-medium text-[#1F2937] dark:text-[#F3F2EE] focus:outline-none focus:border-[#4A6B5D]"
+        >
+          <option value="">No shared plan</option>
+          {READING_PLAN_PRESETS.map((plan) => (
+            <option key={plan.id} value={plan.id}>
+              {plan.title}
+            </option>
+          ))}
+        </select>
+
+        {sharedPlanId && (
+          <button
+            type="button"
+            disabled={syncingMyPlan}
+            onClick={handleSyncMyPlan}
+            className={`w-full py-2.5 px-4 rounded-xl text-xs font-medium flex items-center justify-center gap-2 transition-colors cursor-pointer ${
+              myPlanSynced
+                ? "bg-[#EBF1EE] border border-[#CFE0D6] text-[#3D5A4E]"
+                : "bg-[#4A6B5D] hover:bg-[#3D5A4E] dark:bg-[#63826A] dark:hover:bg-[#7C9A82] text-white"
+            }`}
+          >
+            {syncingMyPlan ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : myPlanSynced ? (
+              <Check className="w-3.5 h-3.5" />
+            ) : (
+              <RefreshCw className="w-3.5 h-3.5" />
+            )}
+            <span>
+              {myPlanSynced
+                ? "Synced with Your Plan"
+                : "Sync My Plan to Circle"}
+            </span>
+          </button>
+        )}
+      </section>
+    </div>
+  );
+}
