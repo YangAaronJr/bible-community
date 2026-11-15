@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   BookMarked,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Loader2,
@@ -14,7 +15,15 @@ import Navbar from "@/components/ui/Navbar";
 import VerseNotesDrawer, {
   type EnrichedVerseNote,
 } from "@/components/reader/VerseNotesDrawer";
-import { fetchChapterWEB, type BibleVerse } from "@/lib/bible/bible-api";
+import {
+  BIBLE_TRANSLATIONS,
+  DEFAULT_TRANSLATION,
+  TRANSLATION_STORAGE_KEY,
+  fetchChapter,
+  isValidTranslation,
+  type BibleTranslationId,
+  type BibleVerse,
+} from "@/lib/bible/bible-api";
 import { BIBLE_BOOKS } from "@/lib/plans/reading-plans";
 import { createClient } from "@/lib/supabase/client";
 
@@ -34,9 +43,40 @@ function ReaderContent() {
     BIBLE_BOOKS.some((b) => b.name === initialBook) ? initialBook : "John"
   );
   const [chapter, setChapter] = useState(initialChapter);
+  const [translation, setTranslation] =
+    useState<BibleTranslationId>(DEFAULT_TRANSLATION);
+  const [translationReady, setTranslationReady] = useState(false);
+  const [translationName, setTranslationName] = useState("Berean Standard Bible");
   const [verses, setVerses] = useState<BibleVerse[]>([]);
   const [loadingText, setLoadingText] = useState(true);
   const [textError, setTextError] = useState<string | null>(null);
+
+  // Restore saved translation preference from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(TRANSLATION_STORAGE_KEY);
+      if (isValidTranslation(saved)) {
+        setTranslation(saved);
+        const meta = BIBLE_TRANSLATIONS.find((t) => t.id === saved);
+        if (meta) setTranslationName(meta.name);
+      }
+    } catch {
+      // Ignore storage read errors
+    } finally {
+      setTranslationReady(true);
+    }
+  }, []);
+
+  const handleTranslationChange = (next: BibleTranslationId) => {
+    setTranslation(next);
+    const meta = BIBLE_TRANSLATIONS.find((t) => t.id === next);
+    if (meta) setTranslationName(meta.name);
+    try {
+      localStorage.setItem(TRANSLATION_STORAGE_KEY, next);
+    } catch {
+      // Ignore storage write errors
+    }
+  };
 
   // User, Circles & Notes
   const [userId, setUserId] = useState<string | null>(null);
@@ -66,16 +106,20 @@ function ReaderContent() {
     }
   }, [searchParams]);
 
-  // Load Bible chapter text from bible-api.com (WEB translation)
+  // Load Bible chapter text via helloao.org with bible-api.com fallback
   useEffect(() => {
+    if (!translationReady) return;
     let cancelled = false;
     setLoadingText(true);
     setTextError(null);
 
-    fetchChapterWEB(book, chapter)
+    fetchChapter(book, chapter, translation)
       .then((res) => {
         if (!cancelled) {
           setVerses(res.verses);
+          if (res.translation_name) {
+            setTranslationName(res.translation_name);
+          }
           setLoadingText(false);
         }
       })
@@ -91,7 +135,7 @@ function ReaderContent() {
     return () => {
       cancelled = true;
     };
-  }, [book, chapter]);
+  }, [book, chapter, translation, translationReady]);
 
   // Load user & circles
   useEffect(() => {
@@ -262,8 +306,8 @@ function ReaderContent() {
 
   return (
     <main className="flex-1 max-w-xl w-full mx-auto px-4 pt-4 pb-36 space-y-5">
-      {/* Centered Compact Top Navigation Bar */}
-      <div className="flex items-center justify-center">
+      {/* Centered Compact Top Navigation Bar & Translation Selector */}
+      <div className="flex flex-wrap items-center justify-center gap-2">
         <div className="inline-flex items-center gap-1.5 bg-white border border-[#E6E1D6] rounded-full p-1.5 shadow-2xs">
           <button
             type="button"
@@ -314,6 +358,25 @@ function ReaderContent() {
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Centered Translation Selector Pill */}
+        <div className="relative inline-flex items-center bg-white border border-[#E6E1D6] rounded-full shadow-2xs">
+          <select
+            value={translation}
+            onChange={(e) =>
+              handleTranslationChange(e.target.value as BibleTranslationId)
+            }
+            aria-label="Select Bible Translation"
+            className="appearance-none bg-transparent pl-3.5 pr-7 py-2 text-xs font-semibold text-[#4A6B5D] focus:outline-none cursor-pointer rounded-full"
+          >
+            {BIBLE_TRANSLATIONS.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.shortLabel}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="w-3.5 h-3.5 text-[#4A6B5D] pointer-events-none absolute right-2.5" />
+        </div>
       </div>
 
       {/* Chapter Title Banner */}
@@ -322,7 +385,7 @@ function ReaderContent() {
           {book} {chapter}
         </h1>
         <p className="text-[11px] text-[#6B7280]">
-          Tap any verse for Circle reflections
+          {translationName} · Tap any verse for Circle reflections
         </p>
       </div>
 
