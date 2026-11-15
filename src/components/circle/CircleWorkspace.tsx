@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { getInitials } from "@/components/ui/Navbar";
+import { triggerRingPush } from "@/lib/notifications/push-client";
 import { createClient } from "@/lib/supabase/client";
 import type {
   CircleInfo,
@@ -342,11 +343,12 @@ export default function CircleWorkspace() {
     }
 
     const supabase = createClient();
+    const ringMessage = "Praying for your time in the Word today";
     const { error } = await supabase.from("rings").insert({
       circle_id: activeCircleId,
       sender_id: userId,
       recipient_id: target.user_id,
-      message: "Praying for your time in the Word today",
+      message: ringMessage,
     });
 
     if (error) {
@@ -354,9 +356,15 @@ export default function CircleWorkspace() {
       return;
     }
 
+    triggerRingPush({
+      circleId: activeCircleId,
+      recipientId: target.user_id,
+      message: ringMessage,
+    });
+
     setRungMemberIds((prev) => new Set(prev).add(target.user_id));
     showToast(
-      `Sent gentle Ring to ${target.display_name.split(" ")[0]}: "Praying for your time in the Word today"`
+      `Sent gentle Ring to ${target.display_name.split(" ")[0]}: "${ringMessage}"`
     );
   }
 

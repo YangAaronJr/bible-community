@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { BellRing, Loader2, Mail, Settings, Shield, X } from "lucide-react";
 import { getInitials } from "@/components/ui/Navbar";
+import { triggerRingPush } from "@/lib/notifications/push-client";
 import { createClient } from "@/lib/supabase/client";
 import DirectMessageDrawer from "@/components/circle/DirectMessageDrawer";
 
@@ -207,14 +208,21 @@ export default function CircleManager({
 
     const supabase = createClient();
     try {
+      const ringMessage = "Praying for your time in the Word today";
       const { error } = await supabase.from("rings").insert({
         circle_id: activeCircleId,
         sender_id: userId,
         recipient_id: target.user_id,
-        message: "Praying for your time in the Word today",
+        message: ringMessage,
       });
 
       if (error) throw error;
+
+      triggerRingPush({
+        circleId: activeCircleId,
+        recipientId: target.user_id,
+        message: ringMessage,
+      });
 
       setSentRingRecipientIds((prev) => new Set(prev).add(target.user_id));
       setFeedback({

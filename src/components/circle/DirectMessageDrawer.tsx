@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { BellRing, ChevronLeft, Loader2, Lock, Send } from "lucide-react";
 import { getInitials } from "@/components/ui/Navbar";
+import { triggerRingPush } from "@/lib/notifications/push-client";
 import { createClient } from "@/lib/supabase/client";
 import type {
   CircleInfo,
@@ -168,14 +169,20 @@ export default function DirectMessageDrawer({
   async function handleQuickRing() {
     if (isRung) return;
     const supabase = createClient();
+    const ringMessage = "Praying for your time in the Word today";
     const { error: ringError } = await supabase.from("rings").insert({
       circle_id: circle.id,
       sender_id: currentUserId,
       recipient_id: recipient.user_id,
-      message: "Praying for your time in the Word today",
+      message: ringMessage,
     });
     if (!ringError) {
       setIsRung(true);
+      triggerRingPush({
+        circleId: circle.id,
+        recipientId: recipient.user_id,
+        message: ringMessage,
+      });
     }
   }
 

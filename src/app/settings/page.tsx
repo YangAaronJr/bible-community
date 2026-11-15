@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
+  BellRing,
   Camera,
   Check,
   Copy,
@@ -19,6 +20,10 @@ import {
 } from "lucide-react";
 import Navbar, { getInitials } from "@/components/ui/Navbar";
 import { createClient } from "@/lib/supabase/client";
+import {
+  arrayBufferToBase64,
+  urlBase64ToUint8Array,
+} from "@/lib/notifications/push-client";
 
 interface CircleSummary {
   id: string;
@@ -51,6 +56,9 @@ export default function SettingsPage() {
   const [themePref, setThemePref] = useState<"light" | "dark" | "system">(
     "system"
   );
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [togglingPush, setTogglingPush] = useState(false);
   const [circles, setCircles] = useState<CircleSummary[]>([]);
   const [activeCircleId, setActiveCircleId] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -154,9 +162,115 @@ export default function SettingsPage() {
       ) {
         setThemePref(savedTheme);
       }
+
+      if (
+        "serviceWorker" in navigator &&
+        "PushManager" in window &&
+        "Notification" in window
+      ) {
+        setPushSupported(true);
+        navigator.serviceWorker
+          .getRegistration("/sw.js")
+          .then((reg) => reg?.pushManager.getSubscription())
+          .then((sub) => {
+            setPushEnabled(Boolean(sub));
+          })
+          .catch(() => {});
+      }
     }
     loadSettings();
   }, [loadSettings]);
+
+  async function handleTogglePushNotifications() {
+    if (!userId || !pushSupported || togglingPush) return;
+    setTogglingPush(true);
+    setFeedback(null);
+
+    const supabase = createClient();
+    try {
+      if (pushEnabled) {
+        const reg = await navigator.serviceWorker.getRegistration("/sw.js");
+        const sub = await reg?.pushManager.getSubscription();
+        if (sub) {
+          const endpoint = sub.endpoint;
+          await sub.unsubscribe();
+          await supabase
+            .from("push_subscriptions")
+            .delete()
+            .eq("user_id", userId)
+            .eq("endpoint", endpoint);
+        }
+        setPushEnabled(false);
+        setFeedback({
+          type: "success",
+          text: "Ring push notifications turned off for this device.",
+        });
+        return;
+      }
+
+      const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      if (!vapidPublicKey) {
+        throw new Error(
+          "Web Push is not configured yet (missing NEXT_PUBLIC_VAPID_PUBLIC_KEY in .env.local)."
+        );
+      }
+
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        throw new Error(
+          "Notification permission was denied. Enable notifications in your browser settings."
+        );
+      }
+
+      const registration = await navigator.serviceWorker.register("/sw.js");
+      await navigator.serviceWorker.ready;
+
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+        });
+      }
+
+      const p256dh = arrayBufferToBase64(subscription.getKey("p256dh"));
+      const auth = arrayBufferToBase64(subscription.getKey("auth"));
+
+      if (!p256dh || !auth) {
+        throw new Error("Browser returned an incomplete push subscription.");
+      }
+
+      const { error: dbError } = await supabase
+        .from("push_subscriptions")
+        .upsert(
+          {
+            user_id: userId,
+            endpoint: subscription.endpoint,
+            p256dh,
+            auth,
+          },
+          { onConflict: "endpoint" }
+        );
+
+      if (dbError) throw dbError;
+
+      setPushEnabled(true);
+      setFeedback({
+        type: "success",
+        text: "Ring notifications enabled for this device.",
+      });
+    } catch (err: unknown) {
+      setFeedback({
+        type: "error",
+        text:
+          err instanceof Error
+            ? err.message
+            : "Could not update push notification preference.",
+      });
+    } finally {
+      setTogglingPush(false);
+    }
+  }
 
   function handleSelectTheme(next: "light" | "dark" | "system") {
     setThemePref(next);
@@ -505,6 +619,43 @@ export default function SettingsPage() {
                   );
                 })}
               </div>
+            </section>
+
+            {/* Ring Push Notifications */}
+            <section className="bg-white border border-[#E6E1D6] rounded-2xl p-5 flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <BellRing className="w-4 h-4 text-[#B47B44] shrink-0" />
+                  <h2 className="font-editorial text-base font-semibold text-[#1F2937]">
+                    Enable Ring Notifications
+                  </h2>
+                </div>
+                <p className="text-xs text-[#6B7280] mt-0.5">
+                  {pushSupported
+                    ? "Receive a gentle lock-screen reminder when a Circle friend sends a Ring, even when the app is closed."
+                    : "Web Push notifications require a supported mobile or desktop browser."}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                role="switch"
+                aria-checked={pushEnabled}
+                aria-label="Enable Ring Notifications"
+                disabled={!pushSupported || togglingPush}
+                onClick={handleTogglePushNotifications}
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors cursor-pointer disabled:opacity-50 ${
+                  pushEnabled
+                    ? "bg-[#4A6B5D] border-[#4A6B5D]"
+                    : "bg-[#F4F1EA] border-[#E6E1D6]"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-2xs transition-transform ${
+                    pushEnabled ? "translate-x-5.5" : "translate-x-1"
+                  }`}
+                />
+              </button>
             </section>
 
             {/* 2. Active Circle Invite Code & Leader Badge */}
