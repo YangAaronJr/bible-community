@@ -10,13 +10,18 @@ import {
   Heart,
   Loader2,
   MessageCircle,
+  Moon,
   SlidersHorizontal,
+  Sparkles,
+  Sun,
 } from "lucide-react";
 import Navbar from "@/components/ui/Navbar";
 import { createClient } from "@/lib/supabase/client";
 import {
   READING_PLAN_PRESETS,
   chapterKey,
+  resolveTrackSequence,
+  type CustomScheduleSlot,
   type ReadingPlanPreset,
 } from "@/lib/plans/reading-plans";
 
@@ -55,6 +60,11 @@ export default function HomePage() {
   );
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [updates, setUpdates] = useState<UpdateItem[]>([]);
+  const [activeCustomSchedule, setActiveCustomSchedule] = useState<{
+    title: string;
+    rest_days: number[];
+    schedule_items: CustomScheduleSlot[];
+  } | null>(null);
 
   const loadSnapshot = useCallback(async () => {
     const supabase = createClient();
@@ -87,6 +97,27 @@ export default function HomePage() {
       map.set(chapterKey(row.book, row.chapter), row);
     }
     setProgressMap(map);
+
+    const { data: activeSched } = await supabase
+      .from("custom_schedules")
+      .select("title, rest_days, schedule_items")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (activeSched) {
+      setActiveCustomSchedule({
+        title: activeSched.title,
+        rest_days: activeSched.rest_days || [0],
+        schedule_items: Array.isArray(activeSched.schedule_items)
+          ? (activeSched.schedule_items as unknown as CustomScheduleSlot[])
+          : [],
+      });
+    } else {
+      setActiveCustomSchedule(null);
+    }
 
     // Fetch Today's Updates (Rings, Active Prayer Requests, DMs, and recent Circle Notes)
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -250,6 +281,26 @@ export default function HomePage() {
   const nextKey = chapterKey(nextUp.book, nextUp.chapter);
   const isNextChecked = progressMap.has(nextKey);
 
+  const todayWeekday = new Date().getDay();
+  const isSabbathRestDay = Boolean(
+    activeCustomSchedule &&
+      activeCustomSchedule.rest_days.includes(todayWeekday)
+  );
+
+  const customSlotReadings = (activeCustomSchedule?.schedule_items || []).map(
+    (slot) => {
+      const seq = resolveTrackSequence(slot.track);
+      const nextChapter =
+        seq.find((c) => !progressMap.has(chapterKey(c.book, c.chapter))) ||
+        seq[0] || { book: "John", chapter: 1 };
+      return {
+        ...slot,
+        book: nextChapter.book,
+        chapter: nextChapter.chapter,
+      };
+    }
+  );
+
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF9F6] text-[#1F2937] pb-24">
       <Navbar />
@@ -313,71 +364,185 @@ export default function HomePage() {
             </div>
           </div>
           <p className="font-editorial text-base font-medium text-[#1F2937] mt-2">
-            {activePlan.title}
+            {activeCustomSchedule
+              ? activeCustomSchedule.title
+              : activePlan.title}
           </p>
         </div>
 
-        {/* Compact Today's Reading Card */}
+        {/* Compact Today's Reading Card (Supports Preset, Morning/Evening Split, or Sabbath Rest Day) */}
         <section className="bg-white border border-[#E6E1D6] rounded-2xl p-5 space-y-4 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[#4A6B5D]">
-                Today&apos;s Reading
+          {isSabbathRestDay && activeCustomSchedule ? (
+            <div className="text-center py-3 space-y-2.5">
+              <span className="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-[#EBF1EE] text-[#4A6B5D] mx-auto">
+                <Sparkles className="w-5 h-5" />
               </span>
-              <h2 className="font-editorial text-2xl font-semibold text-[#1F2937] mt-0.5">
-                {nextUp.book} {nextUp.chapter}
-              </h2>
+              <div>
+                <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[#4A6B5D]">
+                  Sabbath Rest Day
+                </span>
+                <h2 className="font-editorial text-xl font-semibold text-[#1F2937] mt-0.5">
+                  Resting in Grace Today
+                </h2>
+                <p className="text-xs text-[#6B7280] mt-1 max-w-sm mx-auto">
+                  No chapters are scheduled today in{" "}
+                  <strong>{activeCustomSchedule.title}</strong>. Pause, reflect,
+                  or open the Reader freely whenever you wish.
+                </p>
+              </div>
+              <div className="pt-1">
+                <Link
+                  href="/reader"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] text-xs font-medium text-[#1F2937]"
+                >
+                  <BookOpen className="w-3.5 h-3.5 text-[#4A6B5D]" />
+                  <span>Open Reader Freely</span>
+                </Link>
+              </div>
             </div>
-            <span className="w-10 h-10 rounded-2xl bg-[#EBF1EE] text-[#4A6B5D] font-editorial font-semibold text-base flex items-center justify-center">
-              {nextUp.chapter}
-            </span>
-          </div>
+          ) : activeCustomSchedule && customSlotReadings.length > 0 ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[#4A6B5D]">
+                  Today&apos;s Split Schedule
+                </span>
+                <span className="text-[11px] text-[#6B7280]">
+                  {activeCustomSchedule.title}
+                </span>
+              </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Link
-              href={`/reader?book=${encodeURIComponent(
-                nextUp.book
-              )}&chapter=${nextUp.chapter}`}
-              className="py-3 px-4 rounded-2xl bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white text-xs font-medium flex items-center justify-center gap-2 shadow-2xs transition-colors"
-            >
-              <BookOpen className="w-4 h-4" />
-              <span>Read in App</span>
-            </Link>
+              <div className="divide-y divide-[#E6E1D6]">
+                {customSlotReadings.map((slot, idx) => {
+                  const key = chapterKey(slot.book, slot.chapter);
+                  const checked = progressMap.has(key);
+                  return (
+                    <div
+                      key={`${slot.timeOfDay}-${idx}`}
+                      className="py-3 first:pt-1 last:pb-0 space-y-2.5"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="w-7 h-7 rounded-xl bg-[#F4F1EA] flex items-center justify-center">
+                            {slot.timeOfDay === "Morning" ? (
+                              <Sun className="w-3.5 h-3.5 text-[#B47B44]" />
+                            ) : (
+                              <Moon className="w-3.5 h-3.5 text-[#4A6B5D]" />
+                            )}
+                          </span>
+                          <div>
+                            <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[#6B7280]">
+                              {slot.timeOfDay} · {slot.chaptersPerDay} ch
+                            </span>
+                            <h3 className="font-editorial text-lg font-semibold text-[#1F2937] leading-tight">
+                              {slot.book} {slot.chapter}
+                            </h3>
+                          </div>
+                        </div>
+                      </div>
 
-            {userId ? (
-              <button
-                type="button"
-                disabled={busyKey === nextKey}
-                onClick={() =>
-                  togglePhysicalBible(nextUp.book, nextUp.chapter)
-                }
-                className={`py-3 px-4 rounded-2xl border text-xs font-medium flex items-center justify-center gap-2 transition-colors cursor-pointer ${
-                  isNextChecked
-                    ? "bg-[#EBF1EE] border-[#4A6B5D] text-[#3D5A4E]"
-                    : "bg-[#FBF5EE] border-[#E7D3BC] text-[#B47B44] hover:bg-[#F6EAD9]"
-                }`}
-              >
-                {isNextChecked ? (
-                  <>
-                    <Check className="w-4 h-4" />
-                    <span>Completed</span>
-                  </>
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <Link
+                          href={`/reader?book=${encodeURIComponent(
+                            slot.book
+                          )}&chapter=${slot.chapter}`}
+                          className="py-2.5 px-3 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
+                        >
+                          <BookOpen className="w-3.5 h-3.5" />
+                          <span>Read in App</span>
+                        </Link>
+                        <button
+                          type="button"
+                          disabled={busyKey === key}
+                          onClick={() =>
+                            togglePhysicalBible(slot.book, slot.chapter)
+                          }
+                          className={`py-2.5 px-3 rounded-xl border text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                            checked
+                              ? "bg-[#EBF1EE] border-[#4A6B5D] text-[#3D5A4E]"
+                              : "bg-[#FBF5EE] border-[#E7D3BC] text-[#B47B44] hover:bg-[#F6EAD9]"
+                          }`}
+                        >
+                          {checked ? (
+                            <>
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Completed</span>
+                            </>
+                          ) : (
+                            <>
+                              <BookMarked className="w-3.5 h-3.5" />
+                              <span>Physical Bible</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[#4A6B5D]">
+                    Today&apos;s Reading
+                  </span>
+                  <h2 className="font-editorial text-2xl font-semibold text-[#1F2937] mt-0.5">
+                    {nextUp.book} {nextUp.chapter}
+                  </h2>
+                </div>
+                <span className="w-10 h-10 rounded-2xl bg-[#EBF1EE] text-[#4A6B5D] font-editorial font-semibold text-base flex items-center justify-center">
+                  {nextUp.chapter}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Link
+                  href={`/reader?book=${encodeURIComponent(
+                    nextUp.book
+                  )}&chapter=${nextUp.chapter}`}
+                  className="py-3 px-4 rounded-2xl bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white text-xs font-medium flex items-center justify-center gap-2 shadow-2xs transition-colors"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  <span>Read in App</span>
+                </Link>
+
+                {userId ? (
+                  <button
+                    type="button"
+                    disabled={busyKey === nextKey}
+                    onClick={() =>
+                      togglePhysicalBible(nextUp.book, nextUp.chapter)
+                    }
+                    className={`py-3 px-4 rounded-2xl border text-xs font-medium flex items-center justify-center gap-2 transition-colors cursor-pointer ${
+                      isNextChecked
+                        ? "bg-[#EBF1EE] border-[#4A6B5D] text-[#3D5A4E]"
+                        : "bg-[#FBF5EE] border-[#E7D3BC] text-[#B47B44] hover:bg-[#F6EAD9]"
+                    }`}
+                  >
+                    {isNextChecked ? (
+                      <>
+                        <Check className="w-4 h-4" />
+                        <span>Completed</span>
+                      </>
+                    ) : (
+                      <>
+                        <BookMarked className="w-4 h-4" />
+                        <span>Physical Bible</span>
+                      </>
+                    )}
+                  </button>
                 ) : (
-                  <>
-                    <BookMarked className="w-4 h-4" />
-                    <span>Physical Bible</span>
-                  </>
+                  <Link
+                    href="/login"
+                    className="py-3 px-4 rounded-2xl border border-[#E6E1D6] bg-[#FAF9F6] text-[#1F2937] text-xs font-medium flex items-center justify-center gap-2"
+                  >
+                    <span>Sign In</span>
+                  </Link>
                 )}
-              </button>
-            ) : (
-              <Link
-                href="/login"
-                className="py-3 px-4 rounded-2xl border border-[#E6E1D6] bg-[#FAF9F6] text-[#1F2937] text-xs font-medium flex items-center justify-center gap-2"
-              >
-                <span>Sign In</span>
-              </Link>
-            )}
-          </div>
+              </div>
+            </>
+          )}
         </section>
 
         {/* Clean Today's Updates List */}

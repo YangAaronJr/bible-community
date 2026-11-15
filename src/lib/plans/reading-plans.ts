@@ -141,3 +141,44 @@ export const READING_PLAN_PRESETS: ReadingPlanPreset[] = [
 export function chapterKey(book: string, chapter: number): string {
   return `${book}::${chapter}`;
 }
+
+export interface CustomScheduleSlot {
+  timeOfDay: "Morning" | "Evening";
+  track: string;
+  chaptersPerDay: number;
+}
+
+export const SCHEDULE_TRACK_OPTIONS = [
+  { id: "OT", label: "Old Testament (Genesis – Malachi)" },
+  { id: "NT", label: "New Testament (Matthew – Revelation)" },
+  { id: "Gospels", label: "The Four Gospels (Matthew – John)" },
+  { id: "PsalmsProverbs", label: "Psalms & Proverbs" },
+];
+
+export const WEEKDAYS = [
+  { day: 0, short: "Sun", label: "Sunday" },
+  { day: 1, short: "Mon", label: "Monday" },
+  { day: 2, short: "Tue", label: "Tuesday" },
+  { day: 3, short: "Wed", label: "Wednesday" },
+  { day: 4, short: "Thu", label: "Thursday" },
+  { day: 5, short: "Fri", label: "Friday" },
+  { day: 6, short: "Sat", label: "Saturday" },
+];
+
+export function resolveTrackSequence(track: string): ChapterRef[] {
+  if (track === "OT") {
+    return expandBooks(
+      BIBLE_BOOKS.filter((b) => b.testament === "OT").map((b) => b.name)
+    );
+  }
+  if (track === "NT") {
+    return expandBooks(NT_BOOK_NAMES);
+  }
+  if (track === "Gospels") {
+    return expandBooks(["Matthew", "Mark", "Luke", "John"]);
+  }
+  if (track === "PsalmsProverbs") {
+    return expandBooks(["Psalms", "Proverbs"]);
+  }
+  return expandBooks([track]);
+}

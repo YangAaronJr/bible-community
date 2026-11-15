@@ -3,14 +3,35 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BookMarked, BookOpen, Check, Loader2 } from "lucide-react";
+import {
+  BookMarked,
+  BookOpen,
+  Check,
+  Loader2,
+  Moon,
+  Sparkles,
+  Sun,
+  Trash2,
+} from "lucide-react";
 import Navbar from "@/components/ui/Navbar";
 import { createClient } from "@/lib/supabase/client";
+import type { Json } from "@/lib/types/database";
 import {
   BIBLE_BOOKS,
   READING_PLAN_PRESETS,
+  SCHEDULE_TRACK_OPTIONS,
+  WEEKDAYS,
   chapterKey,
+  type CustomScheduleSlot,
 } from "@/lib/plans/reading-plans";
+
+interface CustomScheduleRow {
+  id: string;
+  title: string;
+  rest_days: number[];
+  schedule_items: CustomScheduleSlot[];
+  is_active: boolean;
+}
 
 export default function PlansPage() {
   const router = useRouter();
@@ -18,7 +39,24 @@ export default function PlansPage() {
   const [loading, setLoading] = useState(true);
   const [planId, setPlanId] = useState<"nt-90" | "gospels-psalms">("nt-90");
   const [completedKeys, setCompletedKeys] = useState<Set<string>>(new Set());
+  const [customSchedules, setCustomSchedules] = useState<CustomScheduleRow[]>(
+    []
+  );
 
+  // Custom Schedule Builder form state
+  const [scheduleTitle, setScheduleTitle] = useState(
+    "Morning OT & Evening NT"
+  );
+  const [morningTrack, setMorningTrack] = useState("OT");
+  const [morningCount, setMorningCount] = useState(1);
+  const [enableEvening, setEnableEvening] = useState(true);
+  const [eveningTrack, setEveningTrack] = useState("NT");
+  const [eveningCount, setEveningCount] = useState(1);
+  const [restDays, setRestDays] = useState<number[]>([0]); // Default Sunday Sabbath
+  const [savingCustom, setSavingCustom] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  // Manual jumper
   const [manualBook, setManualBook] = useState("John");
   const [manualChapter, setManualChapter] = useState(1);
   const [busy, setBusy] = useState(false);
@@ -43,16 +81,34 @@ export default function PlansPage() {
       setPlanId(saved);
     }
 
-    const { data: rows } = await supabase
-      .from("reading_progress")
-      .select("book, chapter")
-      .eq("user_id", user.id);
+    const [{ data: rows }, { data: schedRows }] = await Promise.all([
+      supabase
+        .from("reading_progress")
+        .select("book, chapter")
+        .eq("user_id", user.id),
+      supabase
+        .from("custom_schedules")
+        .select("id, title, rest_days, schedule_items, is_active")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false }),
+    ]);
 
     const set = new Set<string>();
     for (const r of rows || []) {
       set.add(chapterKey(r.book, r.chapter));
     }
     setCompletedKeys(set);
+
+    const parsedSchedules: CustomScheduleRow[] = (schedRows || []).map((s) => ({
+      id: s.id,
+      title: s.title,
+      rest_days: s.rest_days || [0],
+      schedule_items: Array.isArray(s.schedule_items)
+        ? (s.schedule_items as unknown as CustomScheduleSlot[])
+        : [],
+      is_active: s.is_active,
+    }));
+    setCustomSchedules(parsedSchedules);
     setLoading(false);
   }, [router]);
 
@@ -60,11 +116,88 @@ export default function PlansPage() {
     loadPlans();
   }, [loadPlans]);
 
-  function selectPlan(id: "nt-90" | "gospels-psalms") {
+  async function selectPresetPlan(id: "nt-90" | "gospels-psalms") {
     setPlanId(id);
     if (typeof window !== "undefined") {
       localStorage.setItem("selected_reading_plan", id);
     }
+    if (userId) {
+      const supabase = createClient();
+      await supabase
+        .from("custom_schedules")
+        .update({ is_active: false })
+        .eq("user_id", userId);
+      await loadPlans();
+    }
+  }
+
+  function toggleRestDay(day: number) {
+    setRestDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+    );
+  }
+
+  async function handleSaveCustomSchedule(e: React.FormEvent) {
+    e.preventDefault();
+    if (!userId || !scheduleTitle.trim()) return;
+    setSavingCustom(true);
+    setFeedback(null);
+
+    const items: CustomScheduleSlot[] = [
+      {
+        timeOfDay: "Morning",
+        track: morningTrack,
+        chaptersPerDay: morningCount,
+      },
+    ];
+    if (enableEvening) {
+      items.push({
+        timeOfDay: "Evening",
+        track: eveningTrack,
+        chaptersPerDay: eveningCount,
+      });
+    }
+
+    const supabase = createClient();
+    await supabase
+      .from("custom_schedules")
+      .update({ is_active: false })
+      .eq("user_id", userId);
+
+    const { error } = await supabase.from("custom_schedules").insert({
+      user_id: userId,
+      title: scheduleTitle.trim(),
+      rest_days: restDays,
+      schedule_items: items as unknown as Json,
+      is_active: true,
+    });
+
+    setSavingCustom(false);
+    if (!error) {
+      setFeedback("Custom schedule activated!");
+      await loadPlans();
+      setTimeout(() => setFeedback(null), 3000);
+    }
+  }
+
+  async function handleActivateSchedule(id: string) {
+    if (!userId) return;
+    const supabase = createClient();
+    await supabase
+      .from("custom_schedules")
+      .update({ is_active: false })
+      .eq("user_id", userId);
+    await supabase
+      .from("custom_schedules")
+      .update({ is_active: true })
+      .eq("id", id);
+    await loadPlans();
+  }
+
+  async function handleDeleteSchedule(id: string) {
+    const supabase = createClient();
+    await supabase.from("custom_schedules").delete().eq("id", id);
+    await loadPlans();
   }
 
   async function toggleManualChapter() {
@@ -104,6 +237,7 @@ export default function PlansPage() {
     }
   }
 
+  const activeCustom = customSchedules.find((s) => s.is_active) || null;
   const selectedBookMeta =
     BIBLE_BOOKS.find((b) => b.name === manualBook) || BIBLE_BOOKS[0];
   const isManualDone = completedKeys.has(chapterKey(manualBook, manualChapter));
@@ -119,16 +253,22 @@ export default function PlansPage() {
               Reading Plans
             </h1>
             <p className="text-xs text-[#6B7280] mt-1">
-              Grace-paced plans · Pick up right where you left off
+              Preset rhythms or custom Morning/Evening splits with Sabbath rest
             </p>
           </div>
           <Link
             href="/"
-            className="px-3 py-1.5 rounded-xl bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] text-xs font-medium text-[#1F2937]"
+            className="px-3.5 py-1.5 rounded-xl bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] text-xs font-medium text-[#1F2937]"
           >
             Done
           </Link>
         </div>
+
+        {feedback && (
+          <div className="px-4 py-3 rounded-2xl bg-[#EBF1EE] border border-[#CFE0D6] text-xs font-medium text-[#3D5A4E]">
+            {feedback}
+          </div>
+        )}
 
         {loading ? (
           <div className="p-8 bg-white border border-[#E6E1D6] rounded-2xl flex items-center justify-center text-xs text-[#6B7280]">
@@ -137,51 +277,277 @@ export default function PlansPage() {
           </div>
         ) : (
           <>
-            <div className="space-y-3">
-              {READING_PLAN_PRESETS.map((plan) => {
-                const selected = plan.id === planId;
-                const doneCount = plan.sequence.filter((c) =>
-                  completedKeys.has(chapterKey(c.book, c.chapter))
-                ).length;
+            {/* 1. Preset Plans */}
+            <section className="space-y-2.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]">
+                Preset Reading Plans
+              </span>
+              <div className="space-y-3">
+                {READING_PLAN_PRESETS.map((plan) => {
+                  const selected = !activeCustom && plan.id === planId;
+                  const doneCount = plan.sequence.filter((c) =>
+                    completedKeys.has(chapterKey(c.book, c.chapter))
+                  ).length;
 
-                return (
-                  <button
-                    key={plan.id}
-                    type="button"
-                    onClick={() => selectPlan(plan.id)}
-                    className={`w-full text-left p-5 rounded-2xl border transition-all cursor-pointer ${
-                      selected
-                        ? "bg-white border-[#4A6B5D] ring-1 ring-[#4A6B5D] shadow-2xs"
-                        : "bg-white border-[#E6E1D6] hover:bg-[#FCFBF8]"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <span className="font-editorial text-lg font-semibold text-[#1F2937]">
-                        {plan.title}
-                      </span>
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                          selected
-                            ? "bg-[#4A6B5D] text-white"
-                            : "bg-[#F4F1EA] text-[#6B7280]"
+                  return (
+                    <button
+                      key={plan.id}
+                      type="button"
+                      onClick={() => selectPresetPlan(plan.id)}
+                      className={`w-full text-left p-4 rounded-2xl border transition-all cursor-pointer ${
+                        selected
+                          ? "bg-white border-[#4A6B5D] ring-1 ring-[#4A6B5D] shadow-2xs"
+                          : "bg-white border-[#E6E1D6] hover:bg-[#FCFBF8]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="font-editorial text-lg font-semibold text-[#1F2937]">
+                          {plan.title}
+                        </span>
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                            selected
+                              ? "bg-[#4A6B5D] text-white"
+                              : "bg-[#F4F1EA] text-[#6B7280]"
+                          }`}
+                        >
+                          {selected ? "Active" : "Select"}
+                        </span>
+                      </div>
+                      <p className="text-xs font-medium text-[#4A6B5D] mb-1">
+                        {plan.subtitle} · {doneCount}/{plan.sequence.length}
+                      </p>
+                      <p className="text-xs text-[#6B7280] leading-relaxed">
+                        {plan.description}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* 2. Saved Custom Schedules */}
+            {customSchedules.length > 0 && (
+              <section className="space-y-2.5">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]">
+                  Your Custom Schedules
+                </span>
+                <div className="space-y-2.5">
+                  {customSchedules.map((sched) => {
+                    const restLabels = sched.rest_days
+                      .map((d) => WEEKDAYS.find((w) => w.day === d)?.short)
+                      .filter(Boolean)
+                      .join(", ");
+
+                    return (
+                      <div
+                        key={sched.id}
+                        className={`p-4 rounded-2xl border bg-white flex items-center justify-between gap-3 ${
+                          sched.is_active
+                            ? "border-[#4A6B5D] ring-1 ring-[#4A6B5D]"
+                            : "border-[#E6E1D6]"
                         }`}
                       >
-                        {selected ? "Active Plan" : "Select"}
-                      </span>
-                    </div>
-                    <p className="text-xs font-medium text-[#4A6B5D] mb-1.5">
-                      {plan.subtitle} · {doneCount}/{plan.sequence.length}{" "}
-                      chapters
-                    </p>
-                    <p className="text-xs text-[#6B7280] leading-relaxed">
-                      {plan.description}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-editorial text-base font-semibold text-[#1F2937] truncate">
+                              {sched.title}
+                            </span>
+                            {sched.is_active && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#4A6B5D] text-white">
+                                Active
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-[#6B7280] mt-0.5">
+                            {sched.schedule_items
+                              .map(
+                                (it) =>
+                                  `${it.timeOfDay}: ${it.track} (${it.chaptersPerDay} ch)`
+                              )
+                              .join(" · ")}{" "}
+                            {restLabels ? `· Sabbath: ${restLabels}` : ""}
+                          </p>
+                        </div>
 
-            {/* Manual Chapter Selector */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          {!sched.is_active && (
+                            <button
+                              type="button"
+                              onClick={() => handleActivateSchedule(sched.id)}
+                              className="px-3 py-1.5 rounded-xl bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] text-xs font-medium text-[#1F2937] cursor-pointer"
+                            >
+                              Activate
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSchedule(sched.id)}
+                            className="p-1.5 text-[#6B7280] hover:text-red-600 cursor-pointer"
+                            title="Delete schedule"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* 3. Custom Schedule Builder */}
+            <form
+              onSubmit={handleSaveCustomSchedule}
+              className="bg-white border border-[#E6E1D6] rounded-2xl p-5 space-y-4 shadow-2xs"
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-[#4A6B5D]" />
+                <div>
+                  <h2 className="font-editorial text-lg font-semibold text-[#1F2937]">
+                    Custom Schedule Builder
+                  </h2>
+                  <p className="text-xs text-[#6B7280]">
+                    Pair Morning &amp; Evening Scripture tracks with guilt-free
+                    Sabbath rest days
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-[#1F2937] mb-1">
+                  Schedule Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={scheduleTitle}
+                  onChange={(e) => setScheduleTitle(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl border border-[#E6E1D6] bg-[#FAF9F6] text-xs text-[#1F2937] focus:outline-none focus:border-[#4A6B5D]"
+                />
+              </div>
+
+              {/* Morning Portion */}
+              <div className="p-3.5 rounded-2xl bg-[#FAF9F6] border border-[#E6E1D6] space-y-2.5">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-[#1F2937]">
+                  <Sun className="w-3.5 h-3.5 text-[#B47B44]" />
+                  <span>Morning Portion</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <select
+                    value={morningTrack}
+                    onChange={(e) => setMorningTrack(e.target.value)}
+                    className="col-span-2 px-3 py-2 rounded-xl border border-[#E6E1D6] bg-white text-xs text-[#1F2937]"
+                  >
+                    {SCHEDULE_TRACK_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={morningCount}
+                    onChange={(e) => setMorningCount(Number(e.target.value))}
+                    className="px-3 py-2 rounded-xl border border-[#E6E1D6] bg-white text-xs text-[#1F2937]"
+                  >
+                    {[1, 2, 3].map((n) => (
+                      <option key={n} value={n}>
+                        {n} {n === 1 ? "chapter" : "chapters"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Evening Portion */}
+              <div className="p-3.5 rounded-2xl bg-[#FAF9F6] border border-[#E6E1D6] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-[#1F2937]">
+                    <Moon className="w-3.5 h-3.5 text-[#4A6B5D]" />
+                    <span>Evening Portion</span>
+                  </div>
+                  <label className="flex items-center gap-1.5 text-[11px] text-[#6B7280] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={enableEvening}
+                      onChange={(e) => setEnableEvening(e.target.checked)}
+                      className="rounded border-[#E6E1D6] text-[#4A6B5D]"
+                    />
+                    <span>Enable Evening Split</span>
+                  </label>
+                </div>
+
+                {enableEvening && (
+                  <div className="grid grid-cols-3 gap-2">
+                    <select
+                      value={eveningTrack}
+                      onChange={(e) => setEveningTrack(e.target.value)}
+                      className="col-span-2 px-3 py-2 rounded-xl border border-[#E6E1D6] bg-white text-xs text-[#1F2937]"
+                    >
+                      {SCHEDULE_TRACK_OPTIONS.map((opt) => (
+                        <option key={opt.id} value={opt.id}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={eveningCount}
+                      onChange={(e) => setEveningCount(Number(e.target.value))}
+                      className="px-3 py-2 rounded-xl border border-[#E6E1D6] bg-white text-xs text-[#1F2937]"
+                    >
+                      {[1, 2, 3].map((n) => (
+                        <option key={n} value={n}>
+                          {n} {n === 1 ? "chapter" : "chapters"}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* Sabbath / Rest Days Selector */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-[#1F2937]">
+                    Sabbath / Rest Days
+                  </label>
+                  <span className="text-[11px] text-[#6B7280]">
+                    Peaceful rest days with no assigned chapters
+                  </span>
+                </div>
+                <div className="grid grid-cols-7 gap-1.5">
+                  {WEEKDAYS.map((w) => {
+                    const selected = restDays.includes(w.day);
+                    return (
+                      <button
+                        key={w.day}
+                        type="button"
+                        onClick={() => toggleRestDay(w.day)}
+                        className={`py-2 rounded-xl text-xs font-medium border transition-colors cursor-pointer ${
+                          selected
+                            ? "bg-[#4A6B5D] border-[#4A6B5D] text-white"
+                            : "bg-[#FAF9F6] border-[#E6E1D6] text-[#6B7280] hover:text-[#1F2937]"
+                        }`}
+                      >
+                        {w.short}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={savingCustom || !scheduleTitle.trim()}
+                className="w-full py-2.5 px-4 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white text-xs font-medium transition-colors cursor-pointer"
+              >
+                {savingCustom
+                  ? "Saving..."
+                  : "Save & Activate Custom Schedule"}
+              </button>
+            </form>
+
+            {/* 4. Manual Chapter Jumper */}
             <section className="bg-white border border-[#E6E1D6] rounded-2xl p-5 space-y-3">
               <div>
                 <h2 className="font-editorial text-base font-semibold text-[#1F2937]">
