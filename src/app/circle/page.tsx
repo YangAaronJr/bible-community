@@ -14,19 +14,9 @@ export default async function CirclePage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#FAF9F6] text-[#1F2937] pb-20 sm:pb-12">
+    <div className="min-h-screen flex flex-col bg-[#FAF9F6] text-[#1F2937] pb-24">
       <Navbar />
-      <main className="flex-1 max-w-3xl w-full mx-auto px-4 py-8 space-y-6">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-serif font-semibold text-[#1F2937]">
-            Fellowship Circle
-          </h1>
-          <p className="text-sm text-[#596579]">
-            Intimate, invite-only small groups (up to 12 members) for shared
-            Scripture reflection, physical notebook photos, and prayer.
-          </p>
-        </div>
-
+      <main className="flex-1 max-w-xl w-full mx-auto px-5 py-4">
         <CircleWorkspace />
       </main>
     </div>
