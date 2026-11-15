@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   BellRing,
   BookOpen,
+  Heart,
   Loader2,
   MessageSquare,
   Search,
@@ -19,6 +20,7 @@ import type {
   CircleMemberProfile,
 } from "@/components/circle/CircleManager";
 import CircleFeed from "@/components/circle/CircleFeed";
+import CirclePrayerSection from "@/components/circle/CirclePrayerSection";
 import DirectMessageDrawer from "@/components/circle/DirectMessageDrawer";
 
 interface SharedReflection {
@@ -88,6 +90,7 @@ export default function CircleWorkspace() {
 
   // Navigation: 'inbox' | 'group-chat' | 'dm'
   const [activeView, setActiveView] = useState<"inbox" | "group-chat">("inbox");
+  const [circleTab, setCircleTab] = useState<"inbox" | "prayer">("inbox");
   const [dmTarget, setDmTarget] = useState<CircleMemberProfile | null>(null);
 
   // Slide-Up Member Card Drawer
@@ -542,115 +545,157 @@ export default function CircleWorkspace() {
         </div>
       </div>
 
-      {/* 2. Pinned Main Circle Group Chat Card */}
-      <div>
+      {/* Inbox / Prayer Tab Switcher */}
+      <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-[#F4F1EA] border border-[#E6E1D6]">
         <button
           type="button"
-          onClick={() => setActiveView("group-chat")}
-          className="w-full text-left bg-white hover:bg-[#FCFBF8] border border-[#E6E1D6] rounded-2xl p-3.5 shadow-2xs transition-all flex items-center gap-3.5 group cursor-pointer"
+          onClick={() => setCircleTab("inbox")}
+          className={`py-2 px-3 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            circleTab === "inbox"
+              ? "bg-white text-[#1F2937] shadow-2xs"
+              : "text-[#6B7280] hover:text-[#1F2937]"
+          }`}
         >
-          <div className="w-[52px] h-[52px] rounded-2xl bg-[#EBF1EE] text-[#4A6B5D] flex items-center justify-center shrink-0 relative">
-            <Users className="w-6 h-6" />
-            <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-[#4A6B5D] ring-2 ring-white" />
-          </div>
+          <MessageSquare className="w-3.5 h-3.5 text-[#4A6B5D]" />
+          <span>Inbox &amp; Chat</span>
+        </button>
 
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between gap-2 mb-0.5">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#4A6B5D]">
-                Pinned Circle Thread
-              </span>
-              <span className="text-[11px] text-[#6B7280]">
-                {latestGroupMsg
-                  ? formatRelativeTime(latestGroupMsg.created_at)
-                  : "Now"}
-              </span>
-            </div>
-            <h2 className="text-[14.5px] font-semibold text-[#1F2937] truncate group-hover:text-[#4A6B5D] transition-colors">
-              {activeCircle.name}
-            </h2>
-            <p className="text-[12.5px] text-[#6B7280] truncate mt-0.5">
-              {latestGroupMsg
-                ? `${latestGroupAuthor}: ${
-                    latestGroupMsg.image_url
-                      ? "Uploaded a handwritten notebook page"
-                      : latestGroupMsg.content
-                  }`
-                : "Tap to open your Circle group fellowship chat"}
-            </p>
-          </div>
+        <button
+          type="button"
+          onClick={() => setCircleTab("prayer")}
+          className={`py-2 px-3 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            circleTab === "prayer"
+              ? "bg-white text-[#1F2937] shadow-2xs"
+              : "text-[#6B7280] hover:text-[#1F2937]"
+          }`}
+        >
+          <Heart className="w-3.5 h-3.5 text-[#4A6B5D]" />
+          <span>Prayer Requests</span>
         </button>
       </div>
 
-      {/* 3. 1-on-1 Fellowship Direct Messages */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]">
-            1-on-1 Fellowship
-          </span>
-          <span className="text-[11px] text-[#6B7280]">Private DMs</span>
-        </div>
+      {circleTab === "prayer" && userId ? (
+        <CirclePrayerSection
+          circle={activeCircle}
+          members={members}
+          currentUserId={userId}
+          onSelectMember={(m) => setDrawerMember(m)}
+        />
+      ) : (
+        <>
+          {/* 2. Pinned Main Circle Group Chat Card */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setActiveView("group-chat")}
+              className="w-full text-left bg-white hover:bg-[#FCFBF8] border border-[#E6E1D6] rounded-2xl p-3.5 shadow-2xs transition-all flex items-center gap-3.5 group cursor-pointer"
+            >
+              <div className="w-[52px] h-[52px] rounded-2xl bg-[#EBF1EE] text-[#4A6B5D] flex items-center justify-center shrink-0 relative">
+                <Users className="w-6 h-6" />
+                <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-[#4A6B5D] ring-2 ring-white" />
+              </div>
 
-        {dmPeers.length === 0 ? (
-          <div className="bg-white border border-[#E6E1D6] rounded-2xl p-5 text-center text-xs text-[#6B7280]">
-            Invite friends to your circle in{" "}
-            <Link href="/settings" className="text-[#4A6B5D] underline">
-              Settings
-            </Link>{" "}
-            to begin 1-on-1 conversations.
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2 mb-0.5">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-[#4A6B5D]">
+                    Pinned Circle Thread
+                  </span>
+                  <span className="text-[11px] text-[#6B7280]">
+                    {latestGroupMsg
+                      ? formatRelativeTime(latestGroupMsg.created_at)
+                      : "Now"}
+                  </span>
+                </div>
+                <h2 className="text-[14.5px] font-semibold text-[#1F2937] truncate group-hover:text-[#4A6B5D] transition-colors">
+                  {activeCircle.name}
+                </h2>
+                <p className="text-[12.5px] text-[#6B7280] truncate mt-0.5">
+                  {latestGroupMsg
+                    ? `${latestGroupAuthor}: ${
+                        latestGroupMsg.image_url
+                          ? "Uploaded a handwritten notebook page"
+                          : latestGroupMsg.content
+                      }`
+                    : "Tap to open your Circle group fellowship chat"}
+                </p>
+              </div>
+            </button>
           </div>
-        ) : (
-          <div className="bg-white border border-[#E6E1D6] rounded-2xl divide-y divide-[#E6E1D6] overflow-hidden">
-            {dmPeers.map((peer) => {
-              const lastDm = latestDmByPeer.get(peer.user_id);
-              const unread = lastDm && lastDm.sender_id === peer.user_id;
 
-              return (
-                <button
-                  key={peer.user_id}
-                  type="button"
-                  onClick={() => setDmTarget(peer)}
-                  className="w-full text-left px-3.5 py-3 hover:bg-[#FAF9F6] transition-colors flex items-center gap-3 cursor-pointer"
-                >
-                  <div className="relative shrink-0">
-                    {renderAvatar(peer.display_name, peer.avatar_url, 46)}
-                    {unread && (
-                      <span className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-[#4A6B5D] ring-2 ring-white" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 truncate">
-                        <span className="text-[13.5px] font-semibold text-[#1F2937] truncate">
-                          {peer.display_name}
-                        </span>
-                        {peer.role === "leader" && (
-                          <span className="px-1.5 py-[1px] rounded-md text-[10px] font-medium bg-[#EBF1EE] text-[#4A6B5D] shrink-0">
-                            Leader
-                          </span>
+          {/* 3. 1-on-1 Fellowship Direct Messages */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]">
+                1-on-1 Fellowship
+              </span>
+              <span className="text-[11px] text-[#6B7280]">Private DMs</span>
+            </div>
+
+            {dmPeers.length === 0 ? (
+              <div className="bg-white border border-[#E6E1D6] rounded-2xl p-5 text-center text-xs text-[#6B7280]">
+                Invite friends to your circle in{" "}
+                <Link href="/settings" className="text-[#4A6B5D] underline">
+                  Settings
+                </Link>{" "}
+                to begin 1-on-1 conversations.
+              </div>
+            ) : (
+              <div className="bg-white border border-[#E6E1D6] rounded-2xl divide-y divide-[#E6E1D6] overflow-hidden">
+                {dmPeers.map((peer) => {
+                  const lastDm = latestDmByPeer.get(peer.user_id);
+                  const unread = lastDm && lastDm.sender_id === peer.user_id;
+
+                  return (
+                    <button
+                      key={peer.user_id}
+                      type="button"
+                      onClick={() => setDmTarget(peer)}
+                      className="w-full text-left px-3.5 py-3 hover:bg-[#FAF9F6] transition-colors flex items-center gap-3 cursor-pointer"
+                    >
+                      <div className="relative shrink-0">
+                        {renderAvatar(peer.display_name, peer.avatar_url, 46)}
+                        {unread && (
+                          <span className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-[#4A6B5D] ring-2 ring-white" />
                         )}
                       </div>
-                      <span className="text-[11px] text-[#6B7280] shrink-0">
-                        {lastDm ? formatRelativeTime(lastDm.created_at) : ""}
-                      </span>
-                    </div>
-                    <p
-                      className={`text-[12.5px] truncate mt-0.5 ${
-                        unread ? "text-[#1F2937] font-medium" : "text-[#6B7280]"
-                      }`}
-                    >
-                      {lastDm
-                        ? lastDm.content
-                        : `Start a 1-on-1 conversation with ${
-                            peer.display_name.split(" ")[0]
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <span className="text-[13.5px] font-semibold text-[#1F2937] truncate">
+                              {peer.display_name}
+                            </span>
+                            {peer.role === "leader" && (
+                              <span className="px-1.5 py-[1px] rounded-md text-[10px] font-medium bg-[#EBF1EE] text-[#4A6B5D] shrink-0">
+                                Leader
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[11px] text-[#6B7280] shrink-0">
+                            {lastDm ? formatRelativeTime(lastDm.created_at) : ""}
+                          </span>
+                        </div>
+                        <p
+                          className={`text-[12.5px] truncate mt-0.5 ${
+                            unread
+                              ? "text-[#1F2937] font-medium"
+                              : "text-[#6B7280]"
                           }`}
-                    </p>
-                  </div>
-                </button>
-              );
-            })}
+                        >
+                          {lastDm
+                            ? lastDm.content
+                            : `Start a 1-on-1 conversation with ${
+                                peer.display_name.split(" ")[0]
+                              }`}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
 
       {/* Slide-Up Member Card Drawer Overlay matching docs/ui-reference.html */}
       {drawerMember && (

@@ -7,6 +7,7 @@ import {
   BookMarked,
   BookOpen,
   Check,
+  Heart,
   Loader2,
   MessageCircle,
   SlidersHorizontal,
@@ -27,7 +28,7 @@ interface ProgressEntry {
 
 interface UpdateItem {
   id: string;
-  kind: "ring" | "dm" | "note";
+  kind: "ring" | "dm" | "note" | "prayer";
   actor: string;
   summary: string;
   href: string;
@@ -87,35 +88,46 @@ export default function HomePage() {
     }
     setProgressMap(map);
 
-    // Fetch Today's Updates (Rings, DMs, and recent Circle Notes)
+    // Fetch Today's Updates (Rings, Active Prayer Requests, DMs, and recent Circle Notes)
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const [{ data: rings }, { data: messages }, { data: notes }] =
-      await Promise.all([
-        supabase
-          .from("rings")
-          .select("id, sender_id, message, created_at")
-          .eq("recipient_id", user.id)
-          .gte("created_at", since24h)
-          .order("created_at", { ascending: false })
-          .limit(3),
-        supabase
-          .from("messages")
-          .select("id, sender_id, recipient_id, content, created_at")
-          .neq("sender_id", user.id)
-          .gte("created_at", since24h)
-          .order("created_at", { ascending: false })
-          .limit(4),
-        supabase
-          .from("verse_notes")
-          .select("id, user_id, book, chapter, verse_start, content, created_at")
-          .neq("user_id", user.id)
-          .gte("created_at", since24h)
-          .order("created_at", { ascending: false })
-          .limit(3),
-      ]);
+    const [
+      { data: rings },
+      { data: prayers },
+      { data: messages },
+      { data: notes },
+    ] = await Promise.all([
+      supabase
+        .from("rings")
+        .select("id, sender_id, message, created_at")
+        .eq("recipient_id", user.id)
+        .gte("created_at", since24h)
+        .order("created_at", { ascending: false })
+        .limit(3),
+      supabase
+        .from("prayer_requests")
+        .select("id, user_id, content, created_at")
+        .eq("is_answered", false)
+        .order("created_at", { ascending: false })
+        .limit(3),
+      supabase
+        .from("messages")
+        .select("id, sender_id, recipient_id, content, created_at")
+        .neq("sender_id", user.id)
+        .gte("created_at", since24h)
+        .order("created_at", { ascending: false })
+        .limit(4),
+      supabase
+        .from("verse_notes")
+        .select("id, user_id, book, chapter, verse_start, content, created_at")
+        .neq("user_id", user.id)
+        .gte("created_at", since24h)
+        .order("created_at", { ascending: false })
+        .limit(3),
+    ]);
 
     const actorIds = new Set<string>();
     (rings || []).forEach((r) => actorIds.add(r.sender_id));
+    (prayers || []).forEach((p) => actorIds.add(p.user_id));
     (messages || []).forEach((m) => actorIds.add(m.sender_id));
     (notes || []).forEach((n) => actorIds.add(n.user_id));
 
@@ -139,6 +151,16 @@ export default function HomePage() {
         summary: `Sent a Ring: "${r.message}"`,
         href: "/circle",
         time: formatShortTime(r.created_at),
+      });
+    }
+    for (const p of prayers || []) {
+      items.push({
+        id: `prayer-${p.id}`,
+        kind: "prayer",
+        actor: nameMap.get(p.user_id) || "Circle Member",
+        summary: `Prayer Request: ${p.content}`,
+        href: "/circle",
+        time: formatShortTime(p.created_at),
       });
     }
     for (const m of messages || []) {
@@ -407,6 +429,8 @@ export default function HomePage() {
                   >
                     {u.kind === "ring" ? (
                       <BellRing className="w-4 h-4" />
+                    ) : u.kind === "prayer" ? (
+                      <Heart className="w-4 h-4" />
                     ) : (
                       <MessageCircle className="w-4 h-4" />
                     )}
