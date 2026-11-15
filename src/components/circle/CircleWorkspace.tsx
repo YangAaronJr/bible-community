@@ -5,6 +5,8 @@ import Link from "next/link";
 import {
   BellRing,
   BookOpen,
+  ChevronLeft,
+  FileText,
   Heart,
   Loader2,
   MessageSquare,
@@ -15,11 +17,13 @@ import {
 } from "lucide-react";
 import { getInitials } from "@/components/ui/Navbar";
 import { triggerRingPush } from "@/lib/notifications/push-client";
+import { READING_PLAN_PRESETS } from "@/lib/plans/reading-plans";
 import { createClient } from "@/lib/supabase/client";
 import type {
   CircleInfo,
   CircleMemberProfile,
 } from "@/components/circle/CircleManager";
+import CircleDocsView from "@/components/circle/CircleDocsView";
 import CircleFeed from "@/components/circle/CircleFeed";
 import CirclePrayerSection from "@/components/circle/CirclePrayerSection";
 import DirectMessageDrawer from "@/components/circle/DirectMessageDrawer";
@@ -85,7 +89,11 @@ function renderAvatar(
   );
 }
 
-export default function CircleWorkspace() {
+export default function CircleWorkspace({
+  circleId,
+}: {
+  circleId?: string;
+}) {
   const [userId, setUserId] = useState<string | null>(null);
   const [circles, setCircles] = useState<CircleInfo[]>([]);
   const [activeCircleId, setActiveCircleId] = useState<string | null>(null);
@@ -94,7 +102,9 @@ export default function CircleWorkspace() {
 
   // Navigation: 'inbox' | 'group-chat' | 'dm'
   const [activeView, setActiveView] = useState<"inbox" | "group-chat">("inbox");
-  const [circleTab, setCircleTab] = useState<"inbox" | "prayer">("inbox");
+  const [circleTab, setCircleTab] = useState<"inbox" | "prayer" | "docs">(
+    "inbox"
+  );
   const [dmTarget, setDmTarget] = useState<CircleMemberProfile | null>(null);
 
   // Slide-Up Member Card Drawer
@@ -155,7 +165,9 @@ export default function CircleWorkspace() {
 
     const { data: circleRows } = await supabase
       .from("circles")
-      .select("id, name, invite_code, created_by, max_members")
+      .select(
+        "id, name, invite_code, created_by, max_members, avatar_url, shared_plan_id"
+      )
       .in("id", circleIds)
       .order("created_at", { ascending: true });
 
@@ -166,12 +178,13 @@ export default function CircleWorkspace() {
       typeof window !== "undefined"
         ? localStorage.getItem("active_circle_id")
         : null;
-    const active =
-      list.find((c) => c.id === (preferredCircleId || savedId)) ||
-      list[0] ||
-      null;
+    const requestedId = circleId || preferredCircleId;
+    const active = circleId
+      ? list.find((c) => c.id === circleId) || null
+      : list.find((c) => c.id === (requestedId || savedId)) || list[0] || null;
 
     if (!active) {
+      setActiveCircleId(null);
       setLoading(false);
       return;
     }
@@ -302,11 +315,11 @@ export default function CircleWorkspace() {
     setRungMemberIds(outgoingRungIds);
     setRingHaloMap(incomingHaloMap);
     setLoading(false);
-  }, []);
+  }, [circleId]);
 
   useEffect(() => {
-    loadInboxData();
-  }, [loadInboxData]);
+    loadInboxData(circleId);
+  }, [loadInboxData, circleId]);
 
   // Automatically clear temporary 15-minute muted-sage halos when they expire
   useEffect(() => {
@@ -433,18 +446,19 @@ export default function CircleWorkspace() {
     return (
       <div className="bg-white border border-[#E6E1D6] rounded-2xl p-6 text-center space-y-3 mt-4">
         <p className="font-editorial text-xl font-medium text-[#1F2937]">
-          Welcome to Circles
+          {circleId ? "Circle Not Found" : "Welcome to Circles"}
         </p>
         <p className="text-xs text-[#6B7280]">
-          Join an invite-only circle (up to 12 members) or start a new one in
-          Settings.
+          {circleId
+            ? "You may not be a member of this circle yet."
+            : "Join an invite-only circle (up to 12 members) or start a new one."}
         </p>
         <Link
-          href="/settings"
-          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white text-xs font-medium transition-colors"
+          href="/circle"
+          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-[#4A6B5D] hover:bg-[#3D5A4E] dark:bg-[#63826A] dark:hover:bg-[#7C9A82] text-white text-xs font-medium transition-colors"
         >
-          <Settings className="w-3.5 h-3.5" />
-          <span>Create or Join in Settings</span>
+          <ChevronLeft className="w-3.5 h-3.5" />
+          <span>Back to Circles</span>
         </Link>
       </div>
     );
@@ -494,48 +508,69 @@ export default function CircleWorkspace() {
     ? rungMemberIds.has(drawerMember.user_id)
     : false;
 
+  const sharedPlanTitle = activeCircle.shared_plan_id
+    ? READING_PLAN_PRESETS.find((p) => p.id === activeCircle.shared_plan_id)
+        ?.title || activeCircle.shared_plan_id
+    : null;
+
   return (
     <div className="space-y-5 relative">
       {/* Gentle Toast Banner */}
       {toastMessage && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 max-w-sm w-[92%] bg-[#1F2937] text-[#FAF9F6] text-xs font-medium px-4 py-2.5 rounded-2xl shadow-lg flex items-center gap-2">
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 max-w-sm w-[92%] bg-[#1F2937] dark:bg-[#2E2E2B] text-[#FAF9F6] dark:text-[#F3F2EE] text-xs font-medium px-4 py-2.5 rounded-2xl shadow-lg flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-[#7FB09A] shrink-0" />
           <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* Top Header Row matching docs/ui-reference.html */}
-      <div className="flex items-center justify-between pt-1">
-        <div className="flex items-center gap-2.5">
-          <h1 className="font-editorial text-[28px] leading-none font-medium text-[#1F2937] tracking-tight">
-            Circles
-          </h1>
-          {circles.length > 1 && (
-            <select
-              value={activeCircle.id}
-              onChange={(e) => loadInboxData(e.target.value)}
-              className="text-xs border border-[#E6E1D6] rounded-xl px-2.5 py-1 bg-[#F4F1EA] text-[#1F2937]"
-            >
-              {circles.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          )}
+      {/* Circle Header: Back to /circle, Avatar + Name + Shared Plan Pill, Search & Settings */}
+      <div className="flex items-center justify-between gap-2.5 pt-1">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Link
+            href="/circle"
+            aria-label="Back to Circles"
+            className="w-9 h-9 rounded-full bg-[#F4F1EA] border border-[#E6E1D6] flex items-center justify-center text-[#1F2937] hover:bg-[#EAE5DA] transition-colors shrink-0"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </Link>
+
+          {renderAvatar(activeCircle.name, activeCircle.avatar_url, 40)}
+
+          <div className="min-w-0">
+            <h1 className="font-editorial text-[22px] leading-tight font-medium text-[#1F2937] tracking-tight truncate">
+              {activeCircle.name}
+            </h1>
+            {sharedPlanTitle && (
+              <span className="inline-flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-full bg-[#EBF1EE] border border-[#CFE0D6] text-[10px] font-medium text-[#3D5A4E] max-w-[180px] truncate">
+                <BookOpen className="w-2.5 h-2.5 shrink-0" />
+                <span className="truncate">{sharedPlanTitle}</span>
+              </span>
+            )}
+          </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            setShowSearch((prev) => !prev);
-            setSearchQuery("");
-          }}
-          aria-label="Search Circle"
-          className="w-9 h-9 rounded-full bg-[#F4F1EA] border border-[#E6E1D6] flex items-center justify-center text-[#1F2937] hover:bg-[#EAE5DA] transition-colors cursor-pointer"
-        >
-          <Search className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              setShowSearch((prev) => !prev);
+              setSearchQuery("");
+            }}
+            aria-label="Search Circle"
+            className="w-9 h-9 rounded-full bg-[#F4F1EA] border border-[#E6E1D6] flex items-center justify-center text-[#1F2937] hover:bg-[#EAE5DA] transition-colors cursor-pointer"
+          >
+            <Search className="w-4 h-4" />
+          </button>
+
+          <Link
+            href={`/circles/${activeCircle.id}/settings`}
+            aria-label="Circle Settings"
+            title="Circle Settings"
+            className="w-9 h-9 rounded-full bg-[#F4F1EA] border border-[#E6E1D6] flex items-center justify-center text-[#1F2937] hover:bg-[#EAE5DA] transition-colors"
+          >
+            <Settings className="w-4 h-4 text-[#4A6B5D]" />
+          </Link>
+        </div>
       </div>
 
       {showSearch && (
@@ -612,32 +647,45 @@ export default function CircleWorkspace() {
         </div>
       </div>
 
-      {/* Inbox / Prayer Tab Switcher */}
-      <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-[#F4F1EA] border border-[#E6E1D6]">
+      {/* Inbox / Prayer / Docs Tab Switcher */}
+      <div className="grid grid-cols-3 gap-1.5 p-1 rounded-2xl bg-[#F4F1EA] border border-[#E6E1D6]">
         <button
           type="button"
           onClick={() => setCircleTab("inbox")}
-          className={`py-2 px-3 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+          className={`py-2 px-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
             circleTab === "inbox"
               ? "bg-white text-[#1F2937] shadow-2xs"
               : "text-[#6B7280] hover:text-[#1F2937]"
           }`}
         >
           <MessageSquare className="w-3.5 h-3.5 text-[#4A6B5D]" />
-          <span>Inbox &amp; Chat</span>
+          <span>Inbox</span>
         </button>
 
         <button
           type="button"
           onClick={() => setCircleTab("prayer")}
-          className={`py-2 px-3 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+          className={`py-2 px-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
             circleTab === "prayer"
               ? "bg-white text-[#1F2937] shadow-2xs"
               : "text-[#6B7280] hover:text-[#1F2937]"
           }`}
         >
           <Heart className="w-3.5 h-3.5 text-[#4A6B5D]" />
-          <span>Prayer Requests</span>
+          <span>Prayer</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setCircleTab("docs")}
+          className={`py-2 px-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            circleTab === "docs"
+              ? "bg-white text-[#1F2937] shadow-2xs"
+              : "text-[#6B7280] hover:text-[#1F2937]"
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5 text-[#4A6B5D]" />
+          <span>Docs</span>
         </button>
       </div>
 
@@ -647,6 +695,13 @@ export default function CircleWorkspace() {
           members={members}
           currentUserId={userId}
           onSelectMember={(m) => setDrawerMember(m)}
+        />
+      ) : circleTab === "docs" && userId ? (
+        <CircleDocsView
+          circle={activeCircle}
+          members={members}
+          currentUserId={userId}
+          onBack={() => setCircleTab("inbox")}
         />
       ) : (
         <>
@@ -700,9 +755,12 @@ export default function CircleWorkspace() {
 
             {dmPeers.length === 0 ? (
               <div className="bg-white border border-[#E6E1D6] rounded-2xl p-5 text-center text-xs text-[#6B7280]">
-                Invite friends to your circle in{" "}
-                <Link href="/settings" className="text-[#4A6B5D] underline">
-                  Settings
+                Share your invite code in{" "}
+                <Link
+                  href={`/circles/${activeCircle.id}/settings`}
+                  className="text-[#4A6B5D] underline"
+                >
+                  Circle Settings
                 </Link>{" "}
                 to begin 1-on-1 conversations.
               </div>
@@ -884,12 +942,12 @@ export default function CircleWorkspace() {
                   <span>Open Reader</span>
                 </Link>
                 <Link
-                  href="/settings"
+                  href={`/circles/${activeCircle.id}/settings`}
                   onClick={() => setDrawerMember(null)}
                   className="py-3 px-4 rounded-2xl bg-[#F4F1EA] border border-[#E6E1D6] text-[#1F2937] text-sm font-medium flex items-center justify-center gap-2 transition-colors"
                 >
                   <Settings className="w-4 h-4" />
-                  <span>Settings</span>
+                  <span>Circle Settings</span>
                 </Link>
               </div>
             )}

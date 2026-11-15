@@ -14,6 +14,8 @@ export interface CircleInfo {
   invite_code: string;
   created_by: string;
   max_members: number;
+  avatar_url?: string | null;
+  shared_plan_id?: string | null;
 }
 
 export interface CircleMemberProfile {
