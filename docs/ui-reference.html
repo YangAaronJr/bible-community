@@ -1,0 +1,1779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fellowship Communication System — Interactive Prototype</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Newsreader (Editorial Serif) & Inter (Crisp UI Sans) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            paper: '#FAF9F6',
+            surface: '#FFFFFF',
+            warm: '#F4F1EA',
+            hairline: '#E6E1D6',
+            ink: '#1F2937',
+            slate: '#6B7280',
+            sage: {
+              DEFAULT: '#4A6B5D',
+              dark: '#3D5A4E',
+              tint: '#EBF1EE',
+            },
+            amberwarm: {
+              DEFAULT: '#B47B44',
+              tint: '#FBF5EE',
+            },
+            studio: '#ECEAE4',
+          },
+          fontFamily: {
+            serif: ['Newsreader', 'Georgia', 'serif'],
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    /* Calm, unhurried typography & subtle scrollbars for 390x844 mobile frames */
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #ECEAE4;
+      color: #1F2937;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .font-editorial {
+      font-family: 'Newsreader', Georgia, serif;
+    }
+
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    .thin-scroll::-webkit-scrollbar {
+      width: 4px;
+    }
+    .thin-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .thin-scroll::-webkit-scrollbar-thumb {
+      background: #DCD6C8;
+      border-radius: 9999px;
+    }
+
+    /* Mobile Device Frame */
+    .phone-shell {
+      width: 390px;
+      height: 844px;
+      background-color: #FAF9F6;
+      border-radius: 44px;
+      box-shadow:
+        0 24px 60px -12px rgba(31, 41, 55, 0.16),
+        0 0 0 10px #1F2937,
+        0 0 0 12px #D6D0C4;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    /* Clean Artboard Frame for Figma html.to.design import */
+    .figma-artboard {
+      width: 390px;
+      height: 844px;
+      background-color: #FAF9F6;
+      border-radius: 28px;
+      border: 1px solid #DCD6C8;
+      box-shadow: 0 12px 32px -8px rgba(31, 41, 55, 0.08);
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    /* Slide-up Drawer transition */
+    .drawer-sheet {
+      transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease;
+    }
+    .drawer-closed {
+      transform: translateY(100%);
+      pointer-events: none;
+    }
+    .drawer-open {
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    /* Contenteditable placeholder & clean editor styling */
+    [contenteditable="true"]:focus {
+      outline: none;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Top Desktop Studio Bar -->
+  <header class="sticky top-0 z-40 bg-[#ECEAE4]/95 backdrop-blur-md border-b border-[#DCD6C8] px-4 sm:px-6 py-3">
+    <div class="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-3">
+      <!-- Title & Design Tokens -->
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-xl bg-[#4A6B5D] text-white flex items-center justify-center shadow-xs">
+          <!-- Open Book / Cross Grace Mark -->
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 6.5v11M8.5 10h7" stroke-linecap="round"/>
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-sm font-semibold text-[#1F2937] tracking-tight">
+              Fellowship Communication System — Interactive Prototype
+            </h1>
+            <span class="hidden md:inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#EBF1EE] text-[#4A6B5D]">
+              390 × 844 Mobile Spec
+            </span>
+          </div>
+          <p class="text-xs text-[#6B7280] hidden sm:block">
+            Grace-centered · Invite-only (12 max) · Zero streaks or public metrics
+          </p>
+        </div>
+      </div>
+
+      <!-- View Mode Switcher & Design Swatches -->
+      <div class="flex items-center gap-3">
+        <!-- Token Swatches (Desktop) -->
+        <div class="hidden xl:flex items-center gap-2 bg-[#F4F1EA] border border-[#E6E1D6] rounded-full px-3 py-1 text-[11px] text-[#6B7280]">
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-[#FAF9F6] border border-[#CCC5B6]"></span> #FAF9F6
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-[#4A6B5D] ml-1"></span> #4A6B5D
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-[#B47B44] ml-1"></span> #B47B44
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-[#1F2937] ml-1"></span> #1F2937
+        </div>
+
+        <!-- Two-Button Mode Switcher -->
+        <div class="inline-flex rounded-xl bg-[#DFDCD3] p-1 border border-[#D4CFC3]" role="tablist">
+          <button
+            id="btn-mode-interactive"
+            onclick="setViewMode('interactive')"
+            class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all bg-[#FFFFFF] text-[#1F2937] shadow-xs"
+          >
+            Interactive Phone (390×844)
+          </button>
+          <button
+            id="btn-mode-figma"
+            onclick="setViewMode('figma')"
+            class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all text-[#6B7280] hover:text-[#1F2937]"
+          >
+            Figma All-Frames View
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <main id="workspace" class="flex-1 flex flex-col items-center justify-center py-6 px-4 overflow-x-auto">
+    <!-- Rendered dynamically by JS -->
+  </main>
+
+  <script>
+    // =========================================================================
+    // 1. VECTOR AVATAR & ILLUSTRATION GENERATORS (Crisp for Browser & Figma)
+    // =========================================================================
+    function getAvatarSVG(id, size = 60) {
+      const avatars = {
+        aaron: `
+          <svg width="${size}" height="${size}" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="40" cy="40" r="40" fill="#DDE6E1"/>
+            <circle cx="40" cy="31" r="14" fill="#D8A48F"/>
+            <path d="M26 28c0-9 6-15 14-15s14 6 14 15c-3-4-8-6-14-6s-11 2-14 6z" fill="#3B322C"/>
+            <path d="M16 74c3-14 13-21 24-21s21 7 24 21" fill="#4A6B5D"/>
+            <circle cx="35.5" cy="31" r="1.5" fill="#1F2937"/>
+            <circle cx="44.5" cy="31" r="1.5" fill="#1F2937"/>
+            <path d="M37 36.5c1.8 1.5 4.2 1.5 6 0" stroke="#1F2937" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>`,
+        daniel: `
+          <svg width="${size}" height="${size}" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="40" cy="40" r="40" fill="#EAE1D3"/>
+            <circle cx="40" cy="32" r="14" fill="#9C6644"/>
+            <path d="M25 29c0-10 7-16 15-16s15 6 15 16c-2-5-7-8-15-8s-13 3-15 8z" fill="#231F20"/>
+            <path d="M16 74c3-14 13-21 24-21s21 7 24 21" fill="#B47B44"/>
+            <circle cx="35.5" cy="32" r="1.5" fill="#1F2937"/>
+            <circle cx="44.5" cy="32" r="1.5" fill="#1F2937"/>
+            <path d="M36.5 37.5c2 1.8 5 1.8 7 0" stroke="#1F2937" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>`,
+        chloe: `
+          <svg width="${size}" height="${size}" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="40" cy="40" r="40" fill="#E6ECE8"/>
+            <path d="M23 35c0-12 7-20 17-20s17 8 17 20v16H23V35z" fill="#2D2926"/>
+            <circle cx="40" cy="32" r="13.5" fill="#F1C6B1"/>
+            <path d="M27 28c4-5 10-7 13-7s9 2 13 7" fill="#2D2926"/>
+            <path d="M17 74c3-13 12-20 23-20s20 7 23 20" fill="#638475"/>
+            <circle cx="35.5" cy="32" r="1.5" fill="#1F2937"/>
+            <circle cx="44.5" cy="32" r="1.5" fill="#1F2937"/>
+            <path d="M37 37c1.8 1.5 4.2 1.5 6 0" stroke="#1F2937" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>`,
+        james: `
+          <svg width="${size}" height="${size}" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="40" cy="40" r="40" fill="#DFE5E8"/>
+            <circle cx="40" cy="31" r="14" fill="#E2B49A"/>
+            <path d="M26 27c1-8 7-13 14-13s13 5 14 13c-4-3-9-4-14-4s-10 1-14 4z" fill="#5C534E"/>
+            <path d="M32 38c2 4 14 4 16 0" stroke="#5C534E" stroke-width="2.2" stroke-linecap="round"/>
+            <path d="M16 74c3-14 13-21 24-21s21 7 24 21" fill="#374B54"/>
+            <circle cx="35.5" cy="31" r="1.5" fill="#1F2937"/>
+            <circle cx="44.5" cy="31" r="1.5" fill="#1F2937"/>
+            <path d="M37 36.2c1.8 1.3 4.2 1.3 6 0" stroke="#1F2937" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>`,
+        sarah: `
+          <svg width="${size}" height="${size}" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="40" cy="40" r="40" fill="#EFE6DC"/>
+            <path d="M22 36c0-13 8-21 18-21s18 8 18 21v14H22V36z" fill="#7F4F24"/>
+            <circle cx="40" cy="32" r="13.5" fill="#F3CBB6"/>
+            <path d="M17 74c3-13 12-20 23-20s20 7 23 20" fill="#C28B59"/>
+            <circle cx="35.5" cy="32" r="1.5" fill="#1F2937"/>
+            <circle cx="44.5" cy="32" r="1.5" fill="#1F2937"/>
+            <path d="M37 37c1.8 1.5 4.2 1.5 6 0" stroke="#1F2937" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>`,
+        ben: `
+          <svg width="${size}" height="${size}" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="40" cy="40" r="40" fill="#E3E7E2"/>
+            <circle cx="40" cy="31" r="14" fill="#DCA98E"/>
+            <path d="M26 28c0-9 6-14 14-14s14 5 14 14c-3-4-8-5-14-5s-11 1-14 5z" fill="#6F4E37"/>
+            <path d="M16 74c3-14 13-21 24-21s21 7 24 21" fill="#587065"/>
+            <circle cx="35.5" cy="31" r="1.5" fill="#1F2937"/>
+            <circle cx="44.5" cy="31" r="1.5" fill="#1F2937"/>
+            <path d="M37 36.5c1.8 1.5 4.2 1.5 6 0" stroke="#1F2937" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>`,
+        maya: `
+          <svg width="${size}" height="${size}" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="40" cy="40" r="40" fill="#EAE3DF"/>
+            <path d="M22 35c0-12 8-20 18-20s18 8 18 20v15H22V35z" fill="#1F1D1C"/>
+            <circle cx="40" cy="32" r="13.5" fill="#B57C58"/>
+            <path d="M17 74c3-13 12-20 23-20s20 7 23 20" fill="#7A6558"/>
+            <circle cx="35.5" cy="32" r="1.5" fill="#1F2937"/>
+            <circle cx="44.5" cy="32" r="1.5" fill="#1F2937"/>
+            <path d="M37 37c1.8 1.5 4.2 1.5 6 0" stroke="#1F2937" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>`,
+      };
+      return avatars[id] || avatars.aaron;
+    }
+
+    // Crisp vector illustration of a handwritten physical Bible notebook page
+    function getNotebookPhotoSVG() {
+      return `
+        <svg class="w-full h-auto rounded-xl border border-[#E6E1D6] bg-[#FCFBF7]" viewBox="0 0 300 176" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Desk shadow & warm paper page -->
+          <rect width="300" height="176" rx="10" fill="#F4EFE6"/>
+          <rect x="14" y="10" width="272" height="156" rx="6" fill="#FFFDF9" stroke="#E5DEC9"/>
+          <!-- Red margin line -->
+          <line x1="44" y1="10" x2="44" y2="166" stroke="#E5A9A9" stroke-width="1"/>
+          <!-- Horizontal ruled lines -->
+          <line x1="14" y1="34" x2="286" y2="34" stroke="#EAE4D7" stroke-width="1"/>
+          <line x1="14" y1="54" x2="286" y2="54" stroke="#EAE4D7" stroke-width="1"/>
+          <line x1="14" y1="74" x2="286" y2="74" stroke="#EAE4D7" stroke-width="1"/>
+          <line x1="14" y1="94" x2="286" y2="94" stroke="#EAE4D7" stroke-width="1"/>
+          <line x1="14" y1="114" x2="286" y2="114" stroke="#EAE4D7" stroke-width="1"/>
+          <line x1="14" y1="134" x2="286" y2="134" stroke="#EAE4D7" stroke-width="1"/>
+          <line x1="14" y1="154" x2="286" y2="154" stroke="#EAE4D7" stroke-width="1"/>
+          <!-- Notebook spiral / binding holes -->
+          <circle cx="26" cy="34" r="3" fill="#EAE4D7"/>
+          <circle cx="26" cy="64" r="3" fill="#EAE4D7"/>
+          <circle cx="26" cy="94" r="3" fill="#EAE4D7"/>
+          <circle cx="26" cy="124" r="3" fill="#EAE4D7"/>
+          <circle cx="26" cy="154" r="3" fill="#EAE4D7"/>
+          <!-- Handwritten-style serif header & fountain pen notes -->
+          <text x="54" y="28" fill="#1F2937" font-family="Newsreader, Georgia, serif" font-style="italic" font-size="13" font-weight="600">John 1:1–14 · Morning Journal</text>
+          <path d="M54 31h128" stroke="#B47B44" stroke-width="1.2" stroke-linecap="round"/>
+          <text x="54" y="49" fill="#374151" font-family="Newsreader, Georgia, serif" font-style="italic" font-size="11.5">"In Him was life, and the life was the light</text>
+          <text x="54" y="69" fill="#374151" font-family="Newsreader, Georgia, serif" font-style="italic" font-size="11.5">of men." — Darkness cannot put it out.</text>
+          <text x="54" y="90" fill="#4A6B5D" font-family="Newsreader, Georgia, serif" font-style="italic" font-size="11.5">→ v.14: Grace upon grace (not earned!)</text>
+          <text x="54" y="110" fill="#374151" font-family="Newsreader, Georgia, serif" font-style="italic" font-size="11.5">Prayer: Lord, slow my heart down before</text>
+          <text x="54" y="130" fill="#374151" font-family="Newsreader, Georgia, serif" font-style="italic" font-size="11.5">classes today. Keep me rooted in Your Word.</text>
+          <!-- Subtle fountain pen resting on lower right corner -->
+          <g transform="translate(212, 128) rotate(-24)">
+            <rect x="0" y="4" width="54" height="7" rx="3.5" fill="#2E4038"/>
+            <polygon points="0,4 -11,7.5 0,11" fill="#C89B6E"/>
+            <line x1="-11" y1="7.5" x2="-4" y2="7.5" stroke="#1F2937" stroke-width="0.8"/>
+          </g>
+        </svg>
+      `;
+    }
+
+    // =========================================================================
+    // 2. APPLICATION STATE & MOCK DATA
+    // =========================================================================
+    const state = {
+      viewMode: 'interactive', // 'interactive' | 'figma'
+      activeScreen: 'inbox', // 'inbox' | 'group-chat' | 'dm' | 'docs'
+      selectedMemberId: null, // opens slide-up Member Card drawer when set
+      activeDmMemberId: 'daniel',
+      activeDocId: 'sermon',
+      showInvitePopover: false,
+      showSearchBar: false,
+      searchQuery: '',
+      showAttachmentTray: false,
+      toastMessage: null,
+      rungMembers: {
+        // tracks who has been rung in this session
+      },
+      prayingRequests: {
+        'msg-prayer-1': true, // user toggled "Praying for you"
+      },
+      members: [
+        {
+          id: 'daniel',
+          shortName: 'Daniel',
+          fullName: 'Daniel Wright',
+          role: 'member',
+          sharedToday: true,
+          passage: 'John 1:1–5',
+          sharedNote: "The light shines in the darkness, and the darkness hasn't overcome it — needed this reminder today.",
+          sharedTime: '8:15 AM',
+          dmPreview: 'Appreciate your thought on John 1 this morning',
+          dmTime: '25m',
+          unreadDm: true,
+        },
+        {
+          id: 'chloe',
+          shortName: 'Chloe',
+          fullName: 'Chloe Lin',
+          role: 'member',
+          sharedToday: true,
+          passage: 'Philippians 4:6–7',
+          sharedNote: 'Handing over exam anxiety to God this morning. Grateful for a group that prays without judging.',
+          sharedTime: '9:02 AM',
+          dmPreview: 'Praying for your exam today!',
+          dmTime: '1d',
+          unreadDm: false,
+        },
+        {
+          id: 'james',
+          shortName: 'James',
+          fullName: 'James Miller',
+          role: 'leader',
+          sharedToday: true,
+          passage: 'Psalm 23:1–3',
+          sharedNote: 'Notice how rest comes before the path of righteousness. God restores our souls before He leads us.',
+          sharedTime: '7:40 AM',
+          dmPreview: 'Let me know if you need anything before Sunday',
+          dmTime: '2h',
+          unreadDm: false,
+        },
+        {
+          id: 'sarah',
+          shortName: 'Sarah',
+          fullName: 'Sarah Jenkins',
+          role: 'member',
+          sharedToday: false,
+          passage: null,
+          sharedNote: null,
+          sharedTime: null,
+          dmPreview: 'Thanks for sharing that Psalm yesterday',
+          dmTime: '3d',
+          unreadDm: false,
+        },
+        {
+          id: 'ben',
+          shortName: 'Ben',
+          fullName: 'Ben Alvarez',
+          role: 'member',
+          sharedToday: false,
+          passage: null,
+          sharedNote: null,
+          sharedTime: null,
+          dmPreview: 'See you at coffee before study!',
+          dmTime: '4d',
+          unreadDm: false,
+        },
+        {
+          id: 'maya',
+          shortName: 'Maya',
+          fullName: 'Maya Patel',
+          role: 'member',
+          sharedToday: false,
+          passage: null,
+          sharedNote: null,
+          sharedTime: null,
+          dmPreview: 'Loved your notes on Romans 8',
+          dmTime: '5d',
+          unreadDm: false,
+        },
+      ],
+      groupMessages: [
+        {
+          id: 'msg-1',
+          senderId: 'james',
+          senderName: 'James Miller',
+          isLeader: true,
+          time: '8:12 AM',
+          type: 'verse',
+          verseRef: 'Psalm 23:1–3',
+          content: 'Notice how rest comes before the path of righteousness. God restores before He leads.',
+        },
+        {
+          id: 'msg-2',
+          senderId: 'daniel',
+          senderName: 'Daniel Wright',
+          isLeader: false,
+          time: '9:05 AM',
+          type: 'notebook',
+          content: 'Morning notes from my physical Bible before class.',
+          reply: {
+            senderId: 'sarah',
+            senderName: 'Sarah Jenkins',
+            time: '9:14 AM',
+            content: 'Love how you underlined v. 14 — grace upon grace!',
+          },
+        },
+        {
+          id: 'msg-prayer-1',
+          senderId: 'chloe',
+          senderName: 'Chloe Lin',
+          isLeader: false,
+          time: '9:28 AM',
+          type: 'prayer',
+          content: 'Praying for wisdom and calm during my finals this week.',
+          otherPraying: ['Daniel', 'James'],
+        },
+      ],
+      dmThreads: {
+        daniel: [
+          { id: 'd1', fromMe: false, text: 'Hey Aaron! Did you read John 1 yet?', time: '9:18 AM' },
+          { id: 'd2', fromMe: true, text: 'Just finished it in my physical Bible. Loved your notebook photo in the group chat.', time: '9:20 AM' },
+          { id: 'd3', fromMe: false, text: 'Appreciate your thought on John 1 this morning', time: '9:22 AM' },
+        ],
+        james: [
+          { id: 'j1', fromMe: false, text: 'Grace and peace this week, Aaron. How is the semester going?', time: 'Yesterday' },
+          { id: 'j2', fromMe: true, text: 'Busy, but really thankful to slow down in Psalms with everyone.', time: 'Yesterday' },
+          { id: 'j3', fromMe: false, text: 'Let me know if you need anything before Sunday', time: '2h ago' },
+        ],
+        chloe: [
+          { id: 'c1', fromMe: true, text: 'Saw your prayer request in the circle — lifting up your exams today!', time: 'Yesterday' },
+          { id: 'c2', fromMe: false, text: 'Praying for your exam today!', time: '1d ago' },
+        ],
+        sarah: [
+          { id: 's1', fromMe: false, text: 'Thanks for sharing that Psalm yesterday', time: '3d ago' },
+        ],
+        ben: [
+          { id: 'b1', fromMe: false, text: 'See you at coffee before study!', time: '4d ago' },
+        ],
+        maya: [
+          { id: 'm1', fromMe: false, text: 'Loved your notes on Romans 8', time: '5d ago' },
+        ],
+      },
+      docs: [
+        {
+          id: 'sermon',
+          title: 'Sunday Sermon Notes',
+          viewer: 'James (Leader) is viewing',
+          updated: 'Saved to Circle',
+          html: `
+            <h2 class="font-editorial text-lg font-semibold text-[#1F2937] mb-1">Abiding in the True Vine · John 15:1–11</h2>
+            <p class="text-xs text-[#6B7280] mb-3">Sunday Gathering · Shared Circle Notes</p>
+            <ul class="list-disc pl-5 space-y-1.5 text-[13.5px] text-[#1F2937] mb-3">
+              <li><strong>Fruitfulness flows from connection, not striving:</strong> Branches do not strain to produce grapes; they stay attached to the vine.</li>
+              <li><strong>Pruning is purposeful care:</strong> God gently trims distractions so deeper joy can grow.</li>
+            </ul>
+            <p class="text-xs font-semibold uppercase tracking-wider text-[#4A6B5D] mb-2">Discussion Prompts for This Week</p>
+          `,
+          checklist: [
+            { id: 'chk1', text: 'Where am I relying on willpower instead of abiding?', done: true },
+            { id: 'chk2', text: 'Share one verse from John 15 in the Circle chat before Thursday', done: false },
+          ],
+        },
+        {
+          id: 'john',
+          title: 'John Study Outline',
+          viewer: 'Daniel is viewing',
+          updated: 'Saved to Circle',
+          html: `
+            <h2 class="font-editorial text-lg font-semibold text-[#1F2937] mb-1">Gospel of John — Reading Companion</h2>
+            <p class="text-xs text-[#6B7280] mb-3">Unhurried pace · No catch-up guilt</p>
+            <ul class="list-disc pl-5 space-y-1.5 text-[13.5px] text-[#1F2937] mb-3">
+              <li><strong>Chapters 1–4:</strong> New beginnings, water into wine, Nicodemus, and the woman at the well.</li>
+              <li><strong>Chapters 5–10:</strong> Signs of grace and the Good Shepherd who knows His sheep by name.</li>
+            </ul>
+          `,
+          checklist: [
+            { id: 'chk3', text: 'Read John 1–3 at your own pace this week', done: true },
+            { id: 'chk4', text: 'Add favorite verses to the reader drawer', done: false },
+          ],
+        },
+        {
+          id: 'prayer',
+          title: 'Prayer & Care List',
+          viewer: 'Saved privately for Circle',
+          updated: 'Saved to Circle',
+          html: `
+            <h2 class="font-editorial text-lg font-semibold text-[#1F2937] mb-1">Ongoing Circle Prayer Care</h2>
+            <p class="text-xs text-[#6B7280] mb-3">Updated together by our 6 members</p>
+            <ul class="list-disc pl-5 space-y-1.5 text-[13.5px] text-[#1F2937] mb-3">
+              <li><strong>Chloe:</strong> Peace and clarity during final exams this week.</li>
+              <li><strong>Daniel:</strong> Summer internship decisions and family travel safety.</li>
+              <li><strong>James:</strong> Wisdom as he prepares Sunday's teaching.</li>
+            </ul>
+          `,
+          checklist: [
+            { id: 'chk5', text: 'Send a gentle Ring to someone on the list today', done: true },
+          ],
+        },
+      ],
+    };
+
+    // =========================================================================
+    // 3. INTERACTIVE ACTIONS & HELPERS
+    // =========================================================================
+    function showToast(msg) {
+      state.toastMessage = msg;
+      render();
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => {
+        state.toastMessage = null;
+        render();
+      }, 2800);
+    }
+
+    function setViewMode(mode) {
+      state.viewMode = mode;
+      const btnInt = document.getElementById('btn-mode-interactive');
+      const btnFig = document.getElementById('btn-mode-figma');
+      if (mode === 'interactive') {
+        btnInt.className = 'px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all bg-[#FFFFFF] text-[#1F2937] shadow-xs';
+        btnFig.className = 'px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all text-[#6B7280] hover:text-[#1F2937]';
+      } else {
+        btnFig.className = 'px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all bg-[#FFFFFF] text-[#1F2937] shadow-xs';
+        btnInt.className = 'px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all text-[#6B7280] hover:text-[#1F2937]';
+      }
+      render();
+    }
+
+    function navigateTo(screen) {
+      state.activeScreen = screen;
+      state.showInvitePopover = false;
+      state.showAttachmentTray = false;
+      render();
+      scrollChatToBottom();
+    }
+
+    function openMemberDrawer(memberId) {
+      state.selectedMemberId = memberId;
+      state.showInvitePopover = false;
+      render();
+    }
+
+    function closeMemberDrawer() {
+      state.selectedMemberId = null;
+      render();
+    }
+
+    function openDmWith(memberId) {
+      state.selectedMemberId = null;
+      state.activeDmMemberId = memberId;
+      state.activeScreen = 'dm';
+      const member = state.members.find(m => m.id === memberId);
+      if (member) member.unreadDm = false;
+      render();
+      scrollChatToBottom();
+    }
+
+    function sendRing(memberId) {
+      if (state.rungMembers[memberId]) {
+        showToast('Already rung · 24h gentle cooldown active');
+        return;
+      }
+      const member = state.members.find(m => m.id === memberId);
+      state.rungMembers[memberId] = true;
+      showToast(`Sent gentle Ring to ${member ? member.shortName : 'friend'}: "Praying for your time in the Word today"`);
+      render();
+    }
+
+    function copyInviteCode() {
+      const tempInput = document.createElement('input');
+      tempInput.value = '8HA99L';
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempInput);
+      state.showInvitePopover = false;
+      showToast('Invite code 8HA99L copied to clipboard');
+    }
+
+    function togglePrayer(msgId) {
+      state.prayingRequests[msgId] = !state.prayingRequests[msgId];
+      render();
+    }
+
+    function sendGroupMessage(customType = 'text', customText = null) {
+      const input = document.getElementById('group-chat-input');
+      const text = customText || (input ? input.value.trim() : '');
+      if (!text) return;
+
+      const newMsg = {
+        id: 'msg-' + Date.now(),
+        senderId: 'aaron',
+        senderName: 'Aaron (You)',
+        isLeader: false,
+        time: 'Just now',
+        type: customType,
+        content: text,
+        otherPraying: customType === 'prayer' ? ['James'] : undefined,
+      };
+
+      state.groupMessages.push(newMsg);
+      if (customType === 'prayer') {
+        state.prayingRequests[newMsg.id] = false;
+      }
+      if (input) input.value = '';
+      state.showAttachmentTray = false;
+      render();
+      scrollChatToBottom();
+    }
+
+    function sendDmMessage() {
+      const input = document.getElementById('dm-chat-input');
+      const text = input ? input.value.trim() : '';
+      if (!text) return;
+
+      const targetId = state.activeDmMemberId;
+      if (!state.dmThreads[targetId]) state.dmThreads[targetId] = [];
+      state.dmThreads[targetId].push({
+        id: 'dm-' + Date.now(),
+        fromMe: true,
+        text,
+        time: 'Just now',
+      });
+
+      const member = state.members.find(m => m.id === targetId);
+      if (member) {
+        member.dmPreview = text;
+        member.dmTime = 'Now';
+      }
+
+      if (input) input.value = '';
+      render();
+      scrollChatToBottom();
+    }
+
+    function selectDoc(docId) {
+      state.activeDocId = docId;
+      render();
+    }
+
+    function createNewDoc() {
+      const newId = 'doc-' + Date.now();
+      const count = state.docs.length + 1;
+      state.docs.unshift({
+        id: newId,
+        title: `Study Note #${count}`,
+        viewer: 'You are editing',
+        updated: 'Saved to Circle',
+        html: `
+          <h2 class="font-editorial text-lg font-semibold text-[#1F2937] mb-1">Untitled Study Reflection</h2>
+          <p class="text-xs text-[#6B7280] mb-3">Tap anywhere below to write together with your Circle...</p>
+          <p class="text-[13.5px] text-[#1F2937]">Write key takeaways, questions, or verses here.</p>
+        `,
+        checklist: [
+          { id: 'chk-' + Date.now(), text: 'Share summary in Circle chat when ready', done: false },
+        ],
+      });
+      state.activeDocId = newId;
+      showToast('Created new shared Circle doc');
+      render();
+    }
+
+    function toggleDocCheck(docId, chkId) {
+      const doc = state.docs.find(d => d.id === docId);
+      if (!doc) return;
+      const item = doc.checklist.find(c => c.id === chkId);
+      if (item) item.done = !item.done;
+      render();
+    }
+
+    function applyDocFormat(cmd) {
+      const editor = document.getElementById('doc-rich-editor');
+      if (!editor) return;
+      editor.focus();
+      if (cmd === 'h1') {
+        document.execCommand('formatBlock', false, 'H2');
+      } else if (cmd === 'h2') {
+        document.execCommand('formatBlock', false, 'H3');
+      } else if (cmd === 'bold') {
+        document.execCommand('bold', false, null);
+      } else if (cmd === 'list') {
+        document.execCommand('insertUnorderedList', false, null);
+      } else if (cmd === 'check') {
+        const doc = state.docs.find(d => d.id === state.activeDocId);
+        if (doc) {
+          doc.checklist.push({ id: 'chk-' + Date.now(), text: 'New action item or prayer prompt', done: false });
+          render();
+          return;
+        }
+      }
+      const badge = document.getElementById('doc-save-badge');
+      if (badge) badge.textContent = 'Saving...';
+      setTimeout(() => {
+        if (badge) badge.textContent = 'Saved to Circle';
+      }, 500);
+    }
+
+    function handleDocInput(el) {
+      const doc = state.docs.find(d => d.id === state.activeDocId);
+      if (doc) doc.html = el.innerHTML;
+      const badge = document.getElementById('doc-save-badge');
+      if (badge) badge.textContent = 'Saving...';
+      clearTimeout(window._saveDocTimer);
+      window._saveDocTimer = setTimeout(() => {
+        if (badge) badge.textContent = 'Saved to Circle';
+      }, 600);
+    }
+
+    function scrollChatToBottom() {
+      setTimeout(() => {
+        const scroller = document.querySelector('.chat-scroll-container');
+        if (scroller) scroller.scrollTop = scroller.scrollHeight;
+      }, 30);
+    }
+
+    // =========================================================================
+    // 4. SCREEN RENDERERS (Reusable for both Interactive & Figma All-Frames)
+    // =========================================================================
+
+    function renderStatusBar() {
+      return `
+        <div class="px-6 pt-3 pb-1.5 flex items-center justify-between text-[11px] font-semibold text-[#1F2937] select-none shrink-0">
+          <span>9:41</span>
+          <div class="w-24 h-5 bg-[#1F2937] rounded-full"></div>
+          <div class="flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 20c.83 0 1.5-.67 1.5-1.5S12.83 17 12 17s-1.5.67-1.5 1.5S11.17 20 12 20zm4.24-3.76l1.41-1.41C16.14 13.32 14.18 12.5 12 12.5s-4.14.82-5.65 2.33l1.41 1.41C8.9 15.1 10.38 14.5 12 14.5s3.1.6 4.24 1.74zm2.83-2.83l1.41-1.41C18.23 9.75 15.27 8.5 12 8.5s-6.23 1.25-8.48 3.5l1.41 1.41C6.8 11.54 9.28 10.5 12 10.5s5.2 1.04 7.07 2.91z"/></svg>
+            <div class="w-5 h-2.5 border border-[#1F2937] rounded-[3px] p-[1px] flex items-center">
+              <div class="w-full h-full bg-[#1F2937] rounded-[1px]"></div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderBottomNav(activeTab = 'circles') {
+      const items = [
+        {
+          id: 'home',
+          label: 'Home',
+          icon: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-9.5z" stroke-linejoin="round"/></svg>`,
+        },
+        {
+          id: 'reader',
+          label: 'Reader',
+          icon: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke-linecap="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`,
+        },
+        {
+          id: 'circles',
+          label: 'Circles',
+          icon: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" stroke-linejoin="round"/></svg>`,
+        },
+        {
+          id: 'journey',
+          label: 'Journey',
+          icon: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2" stroke-linecap="round"/></svg>`,
+        },
+      ];
+
+      return `
+        <nav class="bg-[#FAF9F6]/95 backdrop-blur-md border-t border-[#E6E1D6] px-4 pt-2 pb-5 flex items-center justify-around shrink-0">
+          ${items
+            .map(item => {
+              const isActive = item.id === activeTab;
+              const clickAttr =
+                item.id === 'circles'
+                  ? `onclick="navigateTo('inbox')"`
+                  : `onclick="showToast('${item.label} tab — active prototype focuses on Circles')"`;
+              return `
+                <button ${clickAttr} class="flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition-colors ${
+                isActive ? 'text-[#4A6B5D]' : 'text-[#6B7280] hover:text-[#1F2937]'
+              }">
+                  <div class="${isActive ? 'bg-[#EBF1EE] p-1.5 rounded-xl' : 'p-1.5'}">
+                    ${item.icon}
+                  </div>
+                  <span class="text-[10.5px] font-medium tracking-tight">${item.label}</span>
+                </button>
+              `;
+            })
+            .join('')}
+        </nav>
+      `;
+    }
+
+    // -------------------------------------------------------------------------
+    // SCREEN 01: CIRCLES INBOX
+    // -------------------------------------------------------------------------
+    function renderScreen01Inbox(isStatic = false) {
+      const filteredMembers = state.searchQuery
+        ? state.members.filter(m =>
+            m.fullName.toLowerCase().includes(state.searchQuery.toLowerCase())
+          )
+        : state.members;
+
+      const dmListMembers = filteredMembers.filter(m =>
+        ['daniel', 'james', 'chloe'].includes(m.id) || state.searchQuery
+      );
+
+      return `
+        ${renderStatusBar()}
+
+        <!-- Top Header -->
+        <div class="px-5 pt-2 pb-3 flex items-center justify-between relative shrink-0">
+          <h2 class="font-editorial text-[28px] leading-none font-medium text-[#1F2937] tracking-tight">
+            Circles
+          </h2>
+          <div class="flex items-center gap-2.5">
+            <button
+              onclick="state.showSearchBar = !state.showSearchBar; state.searchQuery = ''; render();"
+              aria-label="Search Circle"
+              class="w-9 h-9 rounded-full bg-[#F4F1EA] border border-[#E6E1D6] flex items-center justify-center text-[#1F2937] hover:bg-[#EAE5DA] transition-colors"
+            >
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5" stroke-linecap="round"/>
+              </svg>
+            </button>
+
+            <!-- Current User Avatar (Aaron) -> Tucked Invite Code & Settings Popover -->
+            <button
+              onclick="state.showInvitePopover = !state.showInvitePopover; render();"
+              class="relative rounded-full ring-2 ring-[#E6E1D6] hover:ring-[#4A6B5D] transition-all"
+              title="Account & Circle Invite Code"
+            >
+              ${getAvatarSVG('aaron', 36)}
+            </button>
+          </div>
+
+          <!-- Tucked Settings & Invite Code Popover -->
+          ${
+            !isStatic && state.showInvitePopover
+              ? `
+              <div class="absolute right-5 top-14 z-30 w-64 bg-[#FFFFFF] rounded-2xl border border-[#E6E1D6] shadow-xl p-4">
+                <div class="flex items-center justify-between pb-3 border-b border-[#E6E1D6]">
+                  <div>
+                    <p class="text-xs font-semibold text-[#1F2937]">Aaron</p>
+                    <p class="text-[11px] text-[#6B7280]">Grace & Psalms Circle · 6/12</p>
+                  </div>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#EBF1EE] text-[#4A6B5D]">Settings</span>
+                </div>
+                <div class="pt-3">
+                  <p class="text-[11px] font-medium text-[#6B7280] mb-1.5">Circle Invite Code</p>
+                  <div class="flex items-center justify-between bg-[#F4F1EA] border border-[#E6E1D6] rounded-xl px-3 py-2">
+                    <span class="font-mono text-xs font-semibold tracking-widest text-[#1F2937]">8HA99L</span>
+                    <button
+                      onclick="copyInviteCode()"
+                      class="text-[11px] font-semibold text-[#4A6B5D] hover:text-[#3D5A4E]"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              </div>
+              `
+              : ''
+          }
+        </div>
+
+        <!-- Optional Search Filter Bar -->
+        ${
+          !isStatic && state.showSearchBar
+            ? `
+            <div class="px-5 pb-3 shrink-0">
+              <input
+                type="text"
+                value="${state.searchQuery}"
+                oninput="state.searchQuery = this.value; render();"
+                placeholder="Filter circle members..."
+                class="w-full bg-[#FFFFFF] border border-[#E6E1D6] rounded-xl px-3.5 py-2 text-xs text-[#1F2937] placeholder-[#6B7280] focus:outline-none focus:border-[#4A6B5D]"
+              />
+            </div>
+            `
+            : ''
+        }
+
+        <!-- Scrollable Body -->
+        <div class="flex-1 overflow-y-auto thin-scroll px-5 pb-4 space-y-5">
+
+          <!-- Horizontal Avatar Strip: Your Circle (6 of 12) -->
+          <div>
+            <div class="flex items-center justify-between mb-2.5">
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]">
+                Your Circle · 6 of 12
+              </span>
+              <span class="text-[11px] text-[#4A6B5D] font-medium">
+                Tap avatar for notes
+              </span>
+            </div>
+
+            <div class="flex items-start gap-3.5 overflow-x-auto no-scrollbar py-1">
+              ${state.members
+                .map(
+                  member => `
+                <button
+                  onclick="openMemberDrawer('${member.id}')"
+                  class="flex flex-col items-center gap-1.5 shrink-0 group focus:outline-none"
+                >
+                  <div class="relative">
+                    <div class="w-[60px] h-[60px] rounded-full p-[2px] ${
+                      member.sharedToday
+                        ? 'ring-2 ring-[#4A6B5D] bg-[#FAF9F6]'
+                        : 'ring-1 ring-[#E6E1D6] bg-[#FAF9F6]'
+                    } group-hover:scale-[1.03] transition-transform">
+                      ${getAvatarSVG(member.id, 56)}
+                    </div>
+                    ${
+                      member.sharedToday
+                        ? `<span class="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-[#4A6B5D] border-2 border-[#FAF9F6]" title="Shared reflection today"></span>`
+                        : ''
+                    }
+                    ${
+                      member.role === 'leader'
+                        ? `<span class="absolute -bottom-1.5 left-1/2 -translate-x-1/2 px-1.5 py-[1px] rounded-full text-[9px] font-semibold bg-[#4A6B5D] text-white shadow-xs">Leader</span>`
+                        : ''
+                    }
+                  </div>
+                  <span class="text-[11.5px] font-medium text-[#1F2937] mt-0.5">${member.shortName}</span>
+                </button>
+              `
+                )
+                .join('')}
+            </div>
+          </div>
+
+          <!-- Pinned Main Circle Group Chat Card -->
+          <div>
+            <button
+              onclick="navigateTo('group-chat')"
+              class="w-full text-left bg-[#FFFFFF] hover:bg-[#FCFBF8] border border-[#E6E1D6] rounded-2xl p-3.5 shadow-2xs transition-all flex items-center gap-3.5 group"
+            >
+              <!-- Group Emblem -->
+              <div class="w-13 h-13 w-[52px] h-[52px] rounded-2xl bg-[#EBF1EE] text-[#4A6B5D] flex items-center justify-center shrink-0 relative">
+                <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke-linecap="round"/>
+                  <circle cx="9" cy="7" r="4"/>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke-linecap="round"/>
+                </svg>
+                <span class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-[#4A6B5D] ring-2 ring-white"></span>
+              </div>
+
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-2 mb-0.5">
+                  <span class="text-[10px] font-semibold uppercase tracking-wider text-[#4A6B5D]">
+                    Pinned Circle Thread
+                  </span>
+                  <span class="text-[11px] text-[#6B7280]">10m</span>
+                </div>
+                <h3 class="text-[14.5px] font-semibold text-[#1F2937] truncate group-hover:text-[#4A6B5D] transition-colors">
+                  Grace & Psalms Circle
+                </h3>
+                <p class="text-[12.5px] text-[#6B7280] truncate mt-0.5">
+                  Daniel: Uploaded a handwritten notebook page
+                </p>
+              </div>
+            </button>
+          </div>
+
+          <!-- 1-on-1 Fellowship Direct Messages -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]">
+                1-on-1 Fellowship
+              </span>
+              <span class="text-[11px] text-[#6B7280]">Private DMs</span>
+            </div>
+
+            <div class="bg-[#FFFFFF] border border-[#E6E1D6] rounded-2xl divide-y divide-[#E6E1D6] overflow-hidden">
+              ${dmListMembers
+                .map(
+                  member => `
+                <button
+                  onclick="openDmWith('${member.id}')"
+                  class="w-full text-left px-3.5 py-3 hover:bg-[#FAF9F6] transition-colors flex items-center gap-3"
+                >
+                  <div class="relative shrink-0">
+                    ${getAvatarSVG(member.id, 46)}
+                    ${
+                      member.unreadDm
+                        ? `<span class="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-[#4A6B5D] ring-2 ring-white"></span>`
+                        : ''
+                    }
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between gap-2">
+                      <div class="flex items-center gap-1.5 truncate">
+                        <span class="text-[13.5px] font-semibold text-[#1F2937] truncate">${member.fullName}</span>
+                        ${
+                          member.role === 'leader'
+                            ? `<span class="px-1.5 py-[1px] rounded-md text-[10px] font-medium bg-[#EBF1EE] text-[#4A6B5D] shrink-0">Leader</span>`
+                            : ''
+                        }
+                      </div>
+                      <span class="text-[11px] text-[#6B7280] shrink-0">${member.dmTime}</span>
+                    </div>
+                    <p class="text-[12.5px] ${
+                      member.unreadDm ? 'text-[#1F2937] font-medium' : 'text-[#6B7280]'
+                    } truncate mt-0.5">
+                      ${member.dmPreview}
+                    </p>
+                  </div>
+                </button>
+              `
+                )
+                .join('')}
+            </div>
+          </div>
+        </div>
+
+        ${renderBottomNav('circles')}
+      `;
+    }
+
+    // -------------------------------------------------------------------------
+    // OVERLAY 02: SLIDE-UP MEMBER CARD DRAWER CONTENT
+    // -------------------------------------------------------------------------
+    function renderMemberCardSheet(memberId, isStaticArtboard = false) {
+      const member = state.members.find(m => m.id === memberId) || state.members[0];
+      const isRung = !!state.rungMembers[member.id];
+
+      return `
+        <div class="bg-[#FAF9F6] rounded-t-[30px] border-t border-[#E6E1D6] shadow-2xl px-5 pt-3 pb-7 flex flex-col">
+          <!-- Drag Handle -->
+          <div class="w-10 h-1 rounded-full bg-[#D6D0C4] mx-auto mb-4"></div>
+
+          <!-- Header Row -->
+          <div class="flex items-start justify-between gap-3 mb-4">
+            <div class="flex items-center gap-3.5">
+              <div class="rounded-full ring-2 ring-[#E6E1D6] p-0.5 bg-white">
+                ${getAvatarSVG(member.id, 68)}
+              </div>
+              <div>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <h3 class="font-editorial text-xl font-semibold text-[#1F2937]">${member.fullName}</h3>
+                  ${
+                    member.role === 'leader'
+                      ? `<span class="px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-[#EBF1EE] text-[#4A6B5D]">Leader / Pastor</span>`
+                      : ''
+                  }
+                </div>
+                <p class="text-xs text-[#6B7280] mt-0.5">Member of Grace & Psalms Circle</p>
+              </div>
+            </div>
+
+            ${
+              !isStaticArtboard
+                ? `
+              <button
+                onclick="closeMemberDrawer()"
+                aria-label="Close member drawer"
+                class="w-8 h-8 rounded-full bg-[#F4F1EA] text-[#6B7280] hover:text-[#1F2937] flex items-center justify-center"
+              >
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12" stroke-linecap="round"/></svg>
+              </button>
+              `
+                : ''
+            }
+          </div>
+
+          <!-- Shared Today Card (Voluntary notes only — zero private reading checklists or streaks) -->
+          <div class="bg-[#FFFFFF] border border-[#E6E1D6] rounded-2xl p-4 mb-5">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-[#4A6B5D]">
+                Shared Today
+              </span>
+              ${
+                member.sharedTime
+                  ? `<span class="text-[11px] text-[#6B7280]">${member.sharedTime}</span>`
+                  : ''
+              }
+            </div>
+
+            ${
+              member.sharedToday
+                ? `
+                <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#F4F1EA] text-[#1F2937] text-xs font-medium mb-2">
+                  <svg class="w-3.5 h-3.5 text-[#4A6B5D]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                  ${member.passage}
+                </div>
+                <p class="font-editorial text-[15px] leading-relaxed text-[#1F2937]">
+                  “${member.sharedNote}”
+                </p>
+              `
+                : `
+                <p class="text-xs text-[#6B7280] leading-relaxed py-2">
+                  No reflection shared today — resting in grace. Private reading progress stays personal.
+                </p>
+              `
+            }
+          </div>
+
+          <!-- Two Large Thumb-Friendly Action Buttons -->
+          <div class="grid grid-cols-2 gap-3">
+            <button
+              onclick="openDmWith('${member.id}')"
+              class="py-3 px-4 rounded-2xl bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white text-sm font-medium flex items-center justify-center gap-2 shadow-xs transition-colors"
+            >
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke-linejoin="round"/>
+              </svg>
+              Message
+            </button>
+
+            <button
+              onclick="sendRing('${member.id}')"
+              class="py-3 px-4 rounded-2xl border text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
+                isRung
+                  ? 'bg-[#F4F1EA] border-[#E6E1D6] text-[#6B7280]'
+                  : 'bg-[#FBF5EE] border-[#E7D3BC] text-[#B47B44] hover:bg-[#F6EAD9]'
+              }"
+            >
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke-linecap="round"/>
+              </svg>
+              ${isRung ? 'Rung · 24h' : 'Ring'}
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    // Dedicated Frame 02 for Figma All-Frames View (Inbox dimmed behind Slide-Up Drawer)
+    function renderScreen02Artboard() {
+      return `
+        <div class="relative w-full h-full flex flex-col overflow-hidden bg-[#FAF9F6]">
+          ${renderScreen01Inbox(true)}
+          <!-- Dimmed Backdrop -->
+          <div class="absolute inset-0 bg-[#1F2937]/30 backdrop-blur-[1px] flex flex-col justify-end">
+            ${renderMemberCardSheet('daniel', true)}
+          </div>
+        </div>
+      `;
+    }
+
+    // -------------------------------------------------------------------------
+    // SCREEN 03: MAIN CIRCLE GROUP CHAT & PRAYER CARDS
+    // -------------------------------------------------------------------------
+    function renderScreen03GroupChat() {
+      return `
+        ${renderStatusBar()}
+
+        <!-- Top Group Chat Bar -->
+        <div class="px-4 py-2.5 bg-[#FAF9F6] border-b border-[#E6E1D6] flex items-center justify-between gap-2 shrink-0">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <button
+              onclick="navigateTo('inbox')"
+              aria-label="Back to Circles"
+              class="w-8 h-8 rounded-full hover:bg-[#F4F1EA] flex items-center justify-center text-[#1F2937] shrink-0"
+            >
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div class="min-w-0">
+              <h2 class="text-[15px] font-semibold text-[#1F2937] truncate">Grace & Psalms Circle</h2>
+              <p class="text-[11px] text-[#6B7280]">6 members · Live fellowship</p>
+            </div>
+          </div>
+
+          <!-- Top-Right Shared Docs Notebook Button -->
+          <button
+            onclick="navigateTo('docs')"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#EBF1EE] hover:bg-[#DCE7E1] text-[#4A6B5D] text-xs font-semibold transition-colors shrink-0"
+            title="Open Shared Circle Docs"
+          >
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke-linejoin="round"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="8" y1="13" x2="16" y2="13"/>
+              <line x1="8" y1="17" x2="13" y2="17"/>
+            </svg>
+            Docs
+          </button>
+        </div>
+
+        <!-- Scrollable Message Feed -->
+        <div class="chat-scroll-container flex-1 overflow-y-auto thin-scroll px-4 py-3.5 space-y-4">
+          ${state.groupMessages
+            .map(msg => {
+              const isMe = msg.senderId === 'aaron';
+
+              // 1. Verse-Anchored Reflection
+              if (msg.type === 'verse') {
+                return `
+                  <div class="flex items-start gap-2.5">
+                    <button onclick="openMemberDrawer('${msg.senderId}')" class="shrink-0 mt-0.5">
+                      ${getAvatarSVG(msg.senderId, 34)}
+                    </button>
+                    <div class="flex-1 bg-[#FFFFFF] border border-[#E6E1D6] rounded-2xl rounded-tl-sm p-3.5 shadow-2xs">
+                      <div class="flex items-center justify-between gap-2 mb-1.5">
+                        <div class="flex items-center gap-1.5">
+                          <span class="text-xs font-semibold text-[#1F2937]">${msg.senderName}</span>
+                          ${
+                            msg.isLeader
+                              ? `<span class="px-1.5 py-[1px] rounded text-[9.5px] font-semibold bg-[#EBF1EE] text-[#4A6B5D]">Leader</span>`
+                              : ''
+                          }
+                        </div>
+                        <span class="text-[10.5px] text-[#6B7280]">${msg.time}</span>
+                      </div>
+                      <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#F4F1EA] text-[#4A6B5D] text-[11.5px] font-medium mb-2">
+                        <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                        ${msg.verseRef}
+                      </div>
+                      <p class="text-[13px] leading-relaxed text-[#1F2937]">${msg.content}</p>
+                    </div>
+                  </div>
+                `;
+              }
+
+              // 2. Handwritten Notebook Photo + Threaded Reply
+              if (msg.type === 'notebook') {
+                return `
+                  <div class="space-y-2">
+                    <div class="flex items-start gap-2.5">
+                      <button onclick="openMemberDrawer('${msg.senderId}')" class="shrink-0 mt-0.5">
+                        ${getAvatarSVG(msg.senderId, 34)}
+                      </button>
+                      <div class="flex-1 bg-[#FFFFFF] border border-[#E6E1D6] rounded-2xl rounded-tl-sm p-3 shadow-2xs">
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                          <div class="flex items-center gap-1.5">
+                            <span class="text-xs font-semibold text-[#1F2937]">${msg.senderName}</span>
+                            <span class="px-1.5 py-[1px] rounded text-[9.5px] font-medium bg-[#FBF5EE] text-[#B47B44]">Physical Bible</span>
+                          </div>
+                          <span class="text-[10.5px] text-[#6B7280]">${msg.time}</span>
+                        </div>
+                        <div class="mb-2">
+                          ${getNotebookPhotoSVG()}
+                        </div>
+                        <p class="text-[13px] leading-relaxed text-[#1F2937]">${msg.content}</p>
+                      </div>
+                    </div>
+
+                    ${
+                      msg.reply
+                        ? `
+                      <div class="ml-10 pl-3 border-l-2 border-[#E6E1D6] flex items-start gap-2">
+                        <button onclick="openMemberDrawer('${msg.reply.senderId}')" class="shrink-0 mt-0.5">
+                          ${getAvatarSVG(msg.reply.senderId, 26)}
+                        </button>
+                        <div class="bg-[#F4F1EA] rounded-xl px-3 py-2 flex-1">
+                          <div class="flex items-center justify-between mb-0.5">
+                            <span class="text-[11.5px] font-semibold text-[#1F2937]">${msg.reply.senderName}</span>
+                            <span class="text-[10px] text-[#6B7280]">${msg.reply.time}</span>
+                          </div>
+                          <p class="text-[12.5px] text-[#1F2937]">${msg.reply.content}</p>
+                        </div>
+                      </div>
+                      `
+                        : ''
+                    }
+                  </div>
+                `;
+              }
+
+              // 3. Prayer Request Card (Zero likes — gentle "Praying for you" toggle)
+              if (msg.type === 'prayer') {
+                const isPraying = !!state.prayingRequests[msg.id];
+                const others = msg.otherPraying || [];
+                const statusNames = isPraying
+                  ? ['You', ...others].join(', ')
+                  : others.join(' & ');
+                const statusText = statusNames
+                  ? `${statusNames} ${isPraying || others.length > 1 ? 'are praying' : 'is praying'}`
+                  : 'Be the first to pray';
+
+                return `
+                  <div class="flex items-start gap-2.5">
+                    <button onclick="openMemberDrawer('${msg.senderId}')" class="shrink-0 mt-0.5">
+                      ${getAvatarSVG(msg.senderId, 34)}
+                    </button>
+                    <div class="flex-1 bg-[#F3F7F4] border border-[#CFE0D6] rounded-2xl rounded-tl-sm p-3.5">
+                      <div class="flex items-center justify-between gap-2 mb-1.5">
+                        <div class="flex items-center gap-1.5">
+                          <span class="text-xs font-semibold text-[#1F2937]">${msg.senderName}</span>
+                          <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#4A6B5D] text-white">Prayer Request</span>
+                        </div>
+                        <span class="text-[10.5px] text-[#6B7280]">${msg.time}</span>
+                      </div>
+                      <p class="text-[13px] leading-relaxed text-[#1F2937] mb-3">${msg.content}</p>
+                      <div class="flex items-center justify-between gap-2 pt-2 border-t border-[#DCE8E0]">
+                        <button
+                          onclick="togglePrayer('${msg.id}')"
+                          class="px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-colors ${
+                            isPraying
+                              ? 'bg-[#4A6B5D] text-white'
+                              : 'bg-white border border-[#CFE0D6] text-[#4A6B5D] hover:bg-[#EBF1EE]'
+                          }"
+                        >
+                          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 21c-4.5-3.5-8-6.8-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 4.2-3.5 7.5-8 11z" stroke-linejoin="round"/>
+                          </svg>
+                          ${isPraying ? 'Praying for you' : 'Pray for ' + msg.senderName.split(' ')[0]}
+                        </button>
+                        <span class="text-[11px] text-[#4A6B5D] font-medium truncate">${statusText}</span>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }
+
+              // 4. Standard Text Reflection
+              return `
+                <div class="flex items-start gap-2.5 ${isMe ? 'justify-end' : ''}">
+                  ${
+                    !isMe
+                      ? `<button onclick="openMemberDrawer('${msg.senderId}')" class="shrink-0 mt-0.5">${getAvatarSVG(msg.senderId, 34)}</button>`
+                      : ''
+                  }
+                  <div class="max-w-[78%] rounded-2xl px-3.5 py-2.5 ${
+                    isMe
+                      ? 'bg-[#4A6B5D] text-white rounded-br-sm'
+                      : 'bg-[#FFFFFF] border border-[#E6E1D6] text-[#1F2937] rounded-tl-sm'
+                  }">
+                    ${
+                      !isMe
+                        ? `<p class="text-[11px] font-semibold text-[#4A6B5D] mb-0.5">${msg.senderName}</p>`
+                        : ''
+                    }
+                    <p class="text-[13px] leading-relaxed">${msg.content}</p>
+                    <p class="text-[10px] mt-1 text-right ${isMe ? 'text-white/75' : 'text-[#6B7280]'}">${msg.time}</p>
+                  </div>
+                </div>
+              `;
+            })
+            .join('')}
+        </div>
+
+        <!-- Attachment Tray (Toggled by + button) -->
+        ${
+          state.showAttachmentTray
+            ? `
+            <div class="px-4 py-2.5 bg-[#F4F1EA] border-t border-[#E6E1D6] grid grid-cols-2 gap-2 shrink-0">
+              <button
+                onclick="sendGroupMessage('prayer', 'Praying for steady focus and peace this week!')"
+                class="bg-[#FFFFFF] border border-[#E6E1D6] hover:border-[#4A6B5D] rounded-xl p-2.5 text-left flex items-center gap-2 transition-colors"
+              >
+                <span class="w-7 h-7 rounded-lg bg-[#EBF1EE] text-[#4A6B5D] flex items-center justify-center shrink-0">
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
+                </span>
+                <div>
+                  <p class="text-xs font-semibold text-[#1F2937]">Prayer Card</p>
+                  <p class="text-[10px] text-[#6B7280]">Ask circle to pray</p>
+                </div>
+              </button>
+              <button
+                onclick="sendGroupMessage('notebook', 'Shared a page from my physical study journal.')"
+                class="bg-[#FFFFFF] border border-[#E6E1D6] hover:border-[#B47B44] rounded-xl p-2.5 text-left flex items-center gap-2 transition-colors"
+              >
+                <span class="w-7 h-7 rounded-lg bg-[#FBF5EE] text-[#B47B44] flex items-center justify-center shrink-0">
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                </span>
+                <div>
+                  <p class="text-xs font-semibold text-[#1F2937]">Notebook Photo</p>
+                  <p class="text-[10px] text-[#6B7280]">Upload journal page</p>
+                </div>
+              </button>
+            </div>
+            `
+            : ''
+        }
+
+        <!-- Interactive Message Composer -->
+        <div class="px-4 pt-2.5 pb-6 bg-[#FAF9F6] border-t border-[#E6E1D6] flex items-center gap-2 shrink-0">
+          <button
+            onclick="state.showAttachmentTray = !state.showAttachmentTray; render();"
+            aria-label="Add Prayer Request or Notebook Photo"
+            class="w-9 h-9 rounded-full bg-[#F4F1EA] border border-[#E6E1D6] text-[#1F2937] hover:bg-[#EAE5DA] flex items-center justify-center shrink-0 transition-transform ${
+              state.showAttachmentTray ? 'rotate-45 bg-[#EBF1EE] text-[#4A6B5D]' : ''
+            }"
+          >
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
+          </button>
+
+          <input
+            id="group-chat-input"
+            type="text"
+            onkeydown="if(event.key==='Enter') sendGroupMessage()"
+            placeholder="Share a reflection with the circle..."
+            class="flex-1 bg-[#FFFFFF] border border-[#E6E1D6] rounded-full px-4 py-2 text-[13px] text-[#1F2937] placeholder-[#6B7280] focus:outline-none focus:border-[#4A6B5D]"
+          />
+
+          <button
+            onclick="sendGroupMessage()"
+            aria-label="Send message"
+            class="w-9 h-9 rounded-full bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white flex items-center justify-center shrink-0 transition-colors"
+          >
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+      `;
+    }
+
+    // -------------------------------------------------------------------------
+    // SCREEN 04: 1-ON-1 DIRECT MESSAGE
+    // -------------------------------------------------------------------------
+    function renderScreen04DirectMessage(overrideMemberId = null) {
+      const memberId = overrideMemberId || state.activeDmMemberId || 'daniel';
+      const member = state.members.find(m => m.id === memberId) || state.members[0];
+      const thread = state.dmThreads[member.id] || [];
+      const isRung = !!state.rungMembers[member.id];
+
+      return `
+        ${renderStatusBar()}
+
+        <!-- Top 1-on-1 DM Header -->
+        <div class="px-4 py-2.5 bg-[#FAF9F6] border-b border-[#E6E1D6] flex items-center justify-between gap-2 shrink-0">
+          <div class="flex items-center gap-2 min-w-0">
+            <button
+              onclick="navigateTo('inbox')"
+              aria-label="Back to Circles"
+              class="w-8 h-8 rounded-full hover:bg-[#F4F1EA] flex items-center justify-center text-[#1F2937] shrink-0"
+            >
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+
+            <!-- Tapping recipient header opens Slide-Up Member Card -->
+            <button
+              onclick="openMemberDrawer('${member.id}')"
+              class="flex items-center gap-2.5 text-left min-w-0 group"
+            >
+              ${getAvatarSVG(member.id, 36)}
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5">
+                  <span class="text-[14px] font-semibold text-[#1F2937] truncate group-hover:text-[#4A6B5D]">${member.fullName}</span>
+                  ${
+                    member.role === 'leader'
+                      ? `<span class="px-1.5 py-[1px] rounded text-[9.5px] font-semibold bg-[#EBF1EE] text-[#4A6B5D]">Leader</span>`
+                      : ''
+                  }
+                </div>
+                <p class="text-[10.5px] text-[#6B7280]">Tap for shared notes</p>
+              </div>
+            </button>
+          </div>
+
+          <!-- Quick Ring Bell Button -->
+          <button
+            onclick="sendRing('${member.id}')"
+            class="px-2.5 py-1.5 rounded-xl border text-xs font-medium flex items-center gap-1.5 shrink-0 transition-colors ${
+              isRung
+                ? 'bg-[#F4F1EA] border-[#E6E1D6] text-[#6B7280]'
+                : 'bg-[#FBF5EE] border-[#E7D3BC] text-[#B47B44] hover:bg-[#F6EAD9]'
+            }"
+          >
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke-linecap="round"/>
+            </svg>
+            ${isRung ? 'Rung' : 'Ring'}
+          </button>
+        </div>
+
+        <!-- Subtle Privacy Banner -->
+        <div class="px-4 py-2 bg-[#F4F1EA] border-b border-[#E6E1D6] flex items-center justify-center gap-1.5 text-[11px] text-[#6B7280] shrink-0">
+          <svg class="w-3.5 h-3.5 text-[#4A6B5D] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          <span class="truncate">Private 1-on-1 conversation · Only visible to you and ${member.shortName}</span>
+        </div>
+
+        <!-- Scrollable DM Messages -->
+        <div class="chat-scroll-container flex-1 overflow-y-auto thin-scroll px-4 py-4 space-y-3">
+          ${thread
+            .map(
+              item => `
+            <div class="flex flex-col ${item.fromMe ? 'items-end' : 'items-start'}">
+              <div class="max-w-[80%] px-3.5 py-2.5 rounded-2xl text-[13px] leading-relaxed ${
+                item.fromMe
+                  ? 'bg-[#4A6B5D] text-white rounded-br-sm'
+                  : 'bg-[#FFFFFF] border border-[#E6E1D6] text-[#1F2937] rounded-bl-sm'
+              }">
+                ${item.text}
+              </div>
+              <span class="text-[10px] text-[#6B7280] mt-1 px-1">${item.time}</span>
+            </div>
+          `
+            )
+            .join('')}
+        </div>
+
+        <!-- DM Reply Input Bar -->
+        <div class="px-4 pt-2.5 pb-6 bg-[#FAF9F6] border-t border-[#E6E1D6] flex items-center gap-2 shrink-0">
+          <input
+            id="dm-chat-input"
+            type="text"
+            onkeydown="if(event.key==='Enter') sendDmMessage()"
+            placeholder="Message ${member.shortName}..."
+            class="flex-1 bg-[#FFFFFF] border border-[#E6E1D6] rounded-full px-4 py-2 text-[13px] text-[#1F2937] placeholder-[#6B7280] focus:outline-none focus:border-[#4A6B5D]"
+          />
+          <button
+            onclick="sendDmMessage()"
+            aria-label="Send direct message"
+            class="w-9 h-9 rounded-full bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white flex items-center justify-center shrink-0 transition-colors"
+          >
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+      `;
+    }
+
+    // -------------------------------------------------------------------------
+    // SCREEN 05: SHARED CIRCLE DOCS (COLLABORATIVE STUDY SPACE)
+    // -------------------------------------------------------------------------
+    function renderScreen05SharedDocs() {
+      const activeDoc = state.docs.find(d => d.id === state.activeDocId) || state.docs[0];
+
+      return `
+        ${renderStatusBar()}
+
+        <!-- Top Circle Docs Header -->
+        <div class="px-4 py-2.5 bg-[#FAF9F6] border-b border-[#E6E1D6] flex items-center justify-between gap-2 shrink-0">
+          <div class="flex items-center gap-2">
+            <button
+              onclick="navigateTo('group-chat')"
+              aria-label="Back to Group Chat"
+              class="w-8 h-8 rounded-full hover:bg-[#F4F1EA] flex items-center justify-center text-[#1F2937]"
+            >
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <h2 class="font-editorial text-[22px] font-medium text-[#1F2937] tracking-tight">Circle Docs</h2>
+          </div>
+
+          <button
+            onclick="createNewDoc()"
+            class="px-3 py-1.5 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white text-xs font-medium flex items-center gap-1 transition-colors"
+          >
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
+            New
+          </button>
+        </div>
+
+        <!-- Horizontal Switcher Pills -->
+        <div class="px-4 py-2.5 bg-[#FAF9F6] flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
+          ${state.docs
+            .map(doc => {
+              const isActive = doc.id === activeDoc.id;
+              return `
+                <button
+                  onclick="selectDoc('${doc.id}')"
+                  class="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+                    isActive
+                      ? 'bg-[#4A6B5D] text-white'
+                      : 'bg-[#F4F1EA] text-[#6B7280] border border-[#E6E1D6] hover:text-[#1F2937]'
+                  }"
+                >
+                  ${doc.title}
+                </button>
+              `;
+            })
+            .join('')}
+        </div>
+
+        <!-- Distraction-Free Collaborative Editor Card -->
+        <div class="flex-1 px-4 pb-5 flex flex-col min-h-0">
+          <div class="flex-1 bg-[#FFFFFF] border border-[#E6E1D6] rounded-2xl shadow-2xs flex flex-col overflow-hidden">
+            <!-- Presence & Auto-Save Status Bar -->
+            <div class="px-3.5 py-2 bg-[#F4F1EA]/70 border-b border-[#E6E1D6] flex items-center justify-between text-[11px] shrink-0">
+              <div class="flex items-center gap-1.5 text-[#1F2937] font-medium">
+                <span class="w-2 h-2 rounded-full bg-[#4A6B5D] animate-pulse"></span>
+                <span>${activeDoc.viewer}</span>
+              </div>
+              <span id="doc-save-badge" class="text-[#6B7280]">${activeDoc.updated}</span>
+            </div>
+
+            <!-- Minimal Rich-Text Formatting Toolbar -->
+            <div class="px-3 py-1.5 border-b border-[#E6E1D6] flex items-center gap-1 bg-[#FAF9F6] shrink-0">
+              <button onclick="applyDocFormat('h1')" class="px-2 py-1 rounded-lg text-[11px] font-semibold text-[#1F2937] hover:bg-[#E6E1D6]/60">H1</button>
+              <button onclick="applyDocFormat('h2')" class="px-2 py-1 rounded-lg text-[11px] font-semibold text-[#1F2937] hover:bg-[#E6E1D6]/60">H2</button>
+              <button onclick="applyDocFormat('bold')" class="px-2 py-1 rounded-lg text-[11px] font-bold text-[#1F2937] hover:bg-[#E6E1D6]/60">B</button>
+              <button onclick="applyDocFormat('list')" class="px-2 py-1 rounded-lg text-[11px] font-medium text-[#1F2937] hover:bg-[#E6E1D6]/60">• List</button>
+              <button onclick="applyDocFormat('check')" class="px-2 py-1 rounded-lg text-[11px] font-medium text-[#4A6B5D] hover:bg-[#EBF1EE]">☑ Check</button>
+            </div>
+
+            <!-- Editable Paper Canvas -->
+            <div class="flex-1 overflow-y-auto thin-scroll p-4 space-y-3">
+              <div
+                id="doc-rich-editor"
+                contenteditable="true"
+                oninput="handleDocInput(this)"
+                class="leading-relaxed text-[#1F2937]"
+              >
+                ${activeDoc.html}
+              </div>
+
+              <!-- Interactive Study Checkboxes -->
+              <div class="space-y-2 pt-1">
+                ${activeDoc.checklist
+                  .map(
+                    chk => `
+                  <button
+                    onclick="toggleDocCheck('${activeDoc.id}', '${chk.id}')"
+                    class="w-full text-left flex items-start gap-2.5 p-2 rounded-xl bg-[#FAF9F6] border border-[#E6E1D6] hover:border-[#4A6B5D] transition-colors"
+                  >
+                    <span class="mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ${
+                      chk.done
+                        ? 'bg-[#4A6B5D] text-white'
+                        : 'bg-white border border-[#CCC5B6]'
+                    }">
+                      ${
+                        chk.done
+                          ? `<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>`
+                          : ''
+                      }
+                    </span>
+                    <span class="text-[12.5px] leading-snug ${
+                      chk.done ? 'line-through text-[#6B7280]' : 'text-[#1F2937]'
+                    }">
+                      ${chk.text}
+                    </span>
+                  </button>
+                `
+                  )
+                  .join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // =========================================================================
+    // 5. MAIN RENDER CONTROLLER (INTERACTIVE PHONE VS. FIGMA ALL-FRAMES VIEW)
+    // =========================================================================
+    function render() {
+      const workspace = document.getElementById('workspace');
+
+      if (state.viewMode === 'interactive') {
+        let activeScreenHTML = '';
+        if (state.activeScreen === 'inbox') activeScreenHTML = renderScreen01Inbox(false);
+        else if (state.activeScreen === 'group-chat') activeScreenHTML = renderScreen03GroupChat();
+        else if (state.activeScreen === 'dm') activeScreenHTML = renderScreen04DirectMessage();
+        else if (state.activeScreen === 'docs') activeScreenHTML = renderScreen05SharedDocs();
+
+        workspace.innerHTML = `
+          <div class="flex flex-col items-center gap-4">
+            <!-- Quick Screen Jump Pills for Easy Testing -->
+            <div class="flex flex-wrap items-center justify-center gap-1.5 text-xs">
+              <span class="text-[#6B7280] mr-1">Jump to:</span>
+              <button onclick="navigateTo('inbox')" class="px-2.5 py-1 rounded-full border ${
+                state.activeScreen === 'inbox'
+                  ? 'bg-[#4A6B5D] text-white border-[#4A6B5D]'
+                  : 'bg-[#FAF9F6] text-[#1F2937] border-[#D6D0C4]'
+              }">01 Inbox</button>
+              <button onclick="openMemberDrawer('daniel')" class="px-2.5 py-1 rounded-full border ${
+                state.selectedMemberId
+                  ? 'bg-[#4A6B5D] text-white border-[#4A6B5D]'
+                  : 'bg-[#FAF9F6] text-[#1F2937] border-[#D6D0C4]'
+              }">02 Member Drawer</button>
+              <button onclick="navigateTo('group-chat')" class="px-2.5 py-1 rounded-full border ${
+                state.activeScreen === 'group-chat'
+                  ? 'bg-[#4A6B5D] text-white border-[#4A6B5D]'
+                  : 'bg-[#FAF9F6] text-[#1F2937] border-[#D6D0C4]'
+              }">03 Group Chat</button>
+              <button onclick="navigateTo('dm')" class="px-2.5 py-1 rounded-full border ${
+                state.activeScreen === 'dm'
+                  ? 'bg-[#4A6B5D] text-white border-[#4A6B5D]'
+                  : 'bg-[#FAF9F6] text-[#1F2937] border-[#D6D0C4]'
+              }">04 1-on-1 DM</button>
+              <button onclick="navigateTo('docs')" class="px-2.5 py-1 rounded-full border ${
+                state.activeScreen === 'docs'
+                  ? 'bg-[#4A6B5D] text-white border-[#4A6B5D]'
+                  : 'bg-[#FAF9F6] text-[#1F2937] border-[#D6D0C4]'
+              }">05 Shared Docs</button>
+            </div>
+
+            <!-- 390 x 844 Interactive Mobile Phone Shell -->
+            <div class="phone-shell">
+              ${activeScreenHTML}
+
+              <!-- Gentle Toast Confirmation Banner -->
+              ${
+                state.toastMessage
+                  ? `
+                  <div class="absolute top-12 left-4 right-4 z-50 bg-[#1F2937] text-[#FAF9F6] text-xs font-medium px-3.5 py-2.5 rounded-2xl shadow-lg flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-[#7FB09A] shrink-0"></span>
+                    <span>${state.toastMessage}</span>
+                  </div>
+                  `
+                  : ''
+              }
+
+              <!-- Slide-Up Member Card Drawer Overlay -->
+              ${
+                state.selectedMemberId
+                  ? `
+                  <div
+                    onclick="if(event.target === this) closeMemberDrawer()"
+                    class="absolute inset-0 z-40 bg-[#1F2937]/30 backdrop-blur-[1px] flex flex-col justify-end"
+                  >
+                    <div class="drawer-sheet drawer-open">
+                      ${renderMemberCardSheet(state.selectedMemberId, false)}
+                    </div>
+                  </div>
+                  `
+                  : ''
+              }
+            </div>
+          </div>
+        `;
+      } else {
+        // FIGMA ALL-FRAMES VIEW: 5 side-by-side 390x844 artboards ready for html.to.design
+        const artboards = [
+          { label: '01 · Circles Inbox', content: renderScreen01Inbox(true) },
+          { label: '02 · Slide-Up Member Card', content: renderScreen02Artboard() },
+          { label: '03 · Group Chat & Prayer Cards', content: renderScreen03GroupChat() },
+          { label: '04 · 1-on-1 Direct Message', content: renderScreen04DirectMessage('daniel') },
+          { label: '05 · Shared Circle Docs', content: renderScreen05SharedDocs() },
+        ];
+
+        workspace.innerHTML = `
+          <div class="w-full max-w-full flex flex-col gap-4">
+            <div class="max-w-3xl mx-auto text-center px-4">
+              <p class="text-xs text-[#6B7280]">
+                <strong class="text-[#1F2937]">Figma Import Tip:</strong> Open this page in your browser and run the free <code class="px-1.5 py-0.5 rounded bg-[#FAF9F6] border border-[#D6D0C4] text-[#4A6B5D]">html.to.design</code> Figma plugin to convert all 5 artboards below into editable Auto-Layout layers.
+              </p>
+            </div>
+
+            <div class="flex items-start gap-8 px-6 pb-8 overflow-x-auto">
+              ${artboards
+                .map(
+                  board => `
+                <div class="flex flex-col gap-2.5 shrink-0">
+                  <div class="flex items-center justify-between px-1">
+                    <span class="text-xs font-semibold text-[#1F2937] tracking-tight">${board.label}</span>
+                    <span class="text-[11px] font-mono text-[#6B7280]">390 × 844</span>
+                  </div>
+                  <div class="figma-artboard">
+                    ${board.content}
+                  </div>
+                </div>
+              `
+                )
+                .join('')}
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    // Initial render
+    window.addEventListener('DOMContentLoaded', () => {
+      render();
+    });
+  </script>
+</body>
+</html>
