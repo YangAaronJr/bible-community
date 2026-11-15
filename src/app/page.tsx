@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import {
-  BellRing,
   BookMarked,
   BookOpen,
   Check,
@@ -33,7 +32,7 @@ interface ProgressEntry {
 
 interface UpdateItem {
   id: string;
-  kind: "ring" | "dm" | "note" | "prayer";
+  kind: "dm" | "note" | "prayer";
   actor: string;
   summary: string;
   href: string;
@@ -119,45 +118,34 @@ export default function HomePage() {
       setActiveCustomSchedule(null);
     }
 
-    // Fetch Today's Updates (Rings, Active Prayer Requests, DMs, and recent Circle Notes)
+    // Fetch Today's Updates (Active Prayer Requests, DMs, and recent Circle Notes)
+    // Rings remain quiet (Web Push + Circle avatar halo only)
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const [
-      { data: rings },
-      { data: prayers },
-      { data: messages },
-      { data: notes },
-    ] = await Promise.all([
-      supabase
-        .from("rings")
-        .select("id, sender_id, message, created_at")
-        .eq("recipient_id", user.id)
-        .gte("created_at", since24h)
-        .order("created_at", { ascending: false })
-        .limit(3),
-      supabase
-        .from("prayer_requests")
-        .select("id, user_id, content, created_at")
-        .eq("is_answered", false)
-        .order("created_at", { ascending: false })
-        .limit(3),
-      supabase
-        .from("messages")
-        .select("id, sender_id, recipient_id, content, created_at")
-        .neq("sender_id", user.id)
-        .gte("created_at", since24h)
-        .order("created_at", { ascending: false })
-        .limit(4),
-      supabase
-        .from("verse_notes")
-        .select("id, user_id, book, chapter, verse_start, content, created_at")
-        .neq("user_id", user.id)
-        .gte("created_at", since24h)
-        .order("created_at", { ascending: false })
-        .limit(3),
-    ]);
+    const [{ data: prayers }, { data: messages }, { data: notes }] =
+      await Promise.all([
+        supabase
+          .from("prayer_requests")
+          .select("id, user_id, content, created_at")
+          .eq("is_answered", false)
+          .order("created_at", { ascending: false })
+          .limit(3),
+        supabase
+          .from("messages")
+          .select("id, sender_id, recipient_id, content, created_at")
+          .neq("sender_id", user.id)
+          .gte("created_at", since24h)
+          .order("created_at", { ascending: false })
+          .limit(4),
+        supabase
+          .from("verse_notes")
+          .select("id, user_id, book, chapter, verse_start, content, created_at")
+          .neq("user_id", user.id)
+          .gte("created_at", since24h)
+          .order("created_at", { ascending: false })
+          .limit(3),
+      ]);
 
     const actorIds = new Set<string>();
-    (rings || []).forEach((r) => actorIds.add(r.sender_id));
     (prayers || []).forEach((p) => actorIds.add(p.user_id));
     (messages || []).forEach((m) => actorIds.add(m.sender_id));
     (notes || []).forEach((n) => actorIds.add(n.user_id));
@@ -174,16 +162,6 @@ export default function HomePage() {
     }
 
     const items: UpdateItem[] = [];
-    for (const r of rings || []) {
-      items.push({
-        id: `ring-${r.id}`,
-        kind: "ring",
-        actor: nameMap.get(r.sender_id) || "Circle Friend",
-        summary: `Sent a Ring: "${r.message}"`,
-        href: "/circle",
-        time: formatShortTime(r.created_at),
-      });
-    }
     for (const p of prayers || []) {
       items.push({
         id: `prayer-${p.id}`,
@@ -574,7 +552,7 @@ export default function HomePage() {
                 >
                   Circles
                 </Link>{" "}
-                to share a reflection or send a Ring.
+                to share a reflection or prayer.
               </p>
             </div>
           ) : (
@@ -585,16 +563,8 @@ export default function HomePage() {
                   href={u.href}
                   className="px-4 py-3 hover:bg-[#FAF9F6] transition-colors flex items-center gap-3"
                 >
-                  <span
-                    className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                      u.kind === "ring"
-                        ? "bg-[#FBF5EE] text-[#B47B44]"
-                        : "bg-[#EBF1EE] text-[#4A6B5D]"
-                    }`}
-                  >
-                    {u.kind === "ring" ? (
-                      <BellRing className="w-4 h-4" />
-                    ) : u.kind === "prayer" ? (
+                  <span className="w-8 h-8 rounded-xl bg-[#EBF1EE] text-[#4A6B5D] flex items-center justify-center shrink-0">
+                    {u.kind === "prayer" ? (
                       <Heart className="w-4 h-4" />
                     ) : (
                       <MessageCircle className="w-4 h-4" />

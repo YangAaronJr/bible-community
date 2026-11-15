@@ -3,14 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BellRing, Moon, Sun, X } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-
-interface RingBannerItem {
-  id: string;
-  senderName: string;
-  message: string;
-}
 
 export function getInitials(name: string | null | undefined): string {
   if (!name) return "FR";
@@ -24,7 +18,6 @@ export default function Navbar() {
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [latestRing, setLatestRing] = useState<RingBannerItem | null>(null);
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
@@ -44,7 +37,7 @@ export default function Navbar() {
   useEffect(() => {
     const supabase = createClient();
 
-    async function loadUserAndRings() {
+    async function loadUserProfile() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -52,7 +45,6 @@ export default function Navbar() {
         setIsAuthenticated(false);
         setDisplayName(null);
         setAvatarUrl(null);
-        setLatestRing(null);
         return;
       }
       setIsAuthenticated(true);
@@ -69,50 +61,10 @@ export default function Navbar() {
           "Reader"
       );
       setAvatarUrl(profile?.avatar_url || null);
-
-      const since24h = new Date(
-        Date.now() - 24 * 60 * 60 * 1000
-      ).toISOString();
-      const { data: ringRow } = await supabase
-        .from("rings")
-        .select("id, sender_id, message")
-        .eq("recipient_id", user.id)
-        .gte("created_at", since24h)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (ringRow) {
-        const dismissedKey = `dismissed_ring_${ringRow.id}`;
-        if (
-          typeof window !== "undefined" &&
-          sessionStorage.getItem(dismissedKey)
-        ) {
-          return;
-        }
-        const { data: senderProf } = await supabase
-          .from("profiles")
-          .select("display_name")
-          .eq("id", ringRow.sender_id)
-          .maybeSingle();
-
-        setLatestRing({
-          id: ringRow.id,
-          senderName: senderProf?.display_name || "A Circle Friend",
-          message: ringRow.message,
-        });
-      }
     }
 
-    loadUserAndRings();
+    loadUserProfile();
   }, [pathname]);
-
-  function dismissRingBanner() {
-    if (latestRing && typeof window !== "undefined") {
-      sessionStorage.setItem(`dismissed_ring_${latestRing.id}`, "1");
-    }
-    setLatestRing(null);
-  }
 
   const isHomeActive =
     pathname === "/" ||
@@ -201,30 +153,6 @@ export default function Navbar() {
             )}
           </div>
         </div>
-
-        {/* Gentle In-App Ring Notification Banner */}
-        {latestRing && !isCirclesActive && (
-          <div className="bg-[#EBF1EE] border-t border-[#CFE0D6] px-4 py-2">
-            <div className="max-w-xl mx-auto flex items-center justify-between gap-2 text-xs text-[#3D5A4E]">
-              <div className="flex items-center gap-2 min-w-0">
-                <BellRing className="w-3.5 h-3.5 text-[#4A6B5D] shrink-0" />
-                <span className="truncate">
-                  <strong>{latestRing.senderName}</strong>:{" "}
-                  <em className="font-editorial">
-                    &ldquo;{latestRing.message}&rdquo;
-                  </em>
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={dismissRingBanner}
-                className="p-0.5 text-[#6B7280] hover:text-[#1F2937] cursor-pointer shrink-0"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        )}
       </header>
 
       {/* Minimal Bottom Navigation Bar (4 Tabs matching docs/ui-reference.html) */}

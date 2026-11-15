@@ -24,6 +24,9 @@ import CircleFeed from "@/components/circle/CircleFeed";
 import CirclePrayerSection from "@/components/circle/CirclePrayerSection";
 import DirectMessageDrawer from "@/components/circle/DirectMessageDrawer";
 
+const RING_COOLDOWN_MS = 10 * 60 * 1000;
+const RING_HALO_MS = 15 * 60 * 1000;
+
 interface SharedReflection {
   passage: string;
   content: string;
@@ -116,8 +119,9 @@ export default function CircleWorkspace() {
     Map<string, MessageSummary>
   >(new Map());
 
-  // 10-minute Ring cooldown & toast feedback
+  // 10-minute outgoing Ring cooldown, 15-minute incoming Ring avatar halo, & toast feedback
   const [rungMemberIds, setRungMemberIds] = useState<Set<string>>(new Set());
+  const [ringHaloMap, setRingHaloMap] = useState<Map<string, number>>(new Map());
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   function showToast(msg: string) {
@@ -207,8 +211,10 @@ export default function CircleWorkspace() {
     );
     setMembers(enrichedMembers);
 
-    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const since10m = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const now = Date.now();
+    const since24h = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+    const since15m = new Date(now - RING_HALO_MS).toISOString();
+    const since10mMs = now - RING_COOLDOWN_MS;
 
     const [{ data: notesToday }, { data: allMessages }, { data: recentRings }] =
       await Promise.all([
@@ -228,10 +234,9 @@ export default function CircleWorkspace() {
           .limit(100),
         supabase
           .from("rings")
-          .select("recipient_id")
+          .select("sender_id, recipient_id, created_at")
           .eq("circle_id", active.id)
-          .eq("sender_id", user.id)
-          .gte("created_at", since10m),
+          .gte("created_at", since15m),
       ]);
 
     // Build sharedTodayMap strictly from voluntary verse_notes and group messages
@@ -278,16 +283,53 @@ export default function CircleWorkspace() {
       }
     }
 
+    const outgoingRungIds = new Set<string>();
+    const incomingHaloMap = new Map<string, number>();
+    for (const r of recentRings || []) {
+      const ts = new Date(r.created_at).getTime();
+      if (r.sender_id === user.id && ts >= since10mMs) {
+        outgoingRungIds.add(r.recipient_id);
+      }
+      if (r.recipient_id === user.id && now - ts < RING_HALO_MS) {
+        const prevTs = incomingHaloMap.get(r.sender_id) ?? 0;
+        if (ts > prevTs) incomingHaloMap.set(r.sender_id, ts);
+      }
+    }
+
     setSharedTodayMap(reflectionMap);
     setLatestGroupMsg(newestGroup);
     setLatestDmByPeer(dmMap);
-    setRungMemberIds(new Set((recentRings || []).map((r) => r.recipient_id)));
+    setRungMemberIds(outgoingRungIds);
+    setRingHaloMap(incomingHaloMap);
     setLoading(false);
   }, []);
 
   useEffect(() => {
     loadInboxData();
   }, [loadInboxData]);
+
+  // Automatically clear temporary 15-minute muted-sage halos when they expire
+  useEffect(() => {
+    if (ringHaloMap.size === 0) return;
+    const now = Date.now();
+    let earliestRemaining = Infinity;
+    for (const ts of ringHaloMap.values()) {
+      const remaining = ts + RING_HALO_MS - now;
+      if (remaining < earliestRemaining) earliestRemaining = remaining;
+    }
+    const timer = setTimeout(() => {
+      const cutoff = Date.now() - RING_HALO_MS;
+      setRingHaloMap((prev) => {
+        const next = new Map<string, number>();
+        for (const [senderId, ts] of prev.entries()) {
+          if (ts > cutoff) next.set(senderId, ts);
+        }
+        return next;
+      });
+    }, Math.max(0, earliestRemaining) + 50);
+
+    return () => clearTimeout(timer);
+  }, [ringHaloMap]);
 
   // Subscribe to Supabase Realtime on messages & rings for live Inbox & Ring updates
   useEffect(() => {
@@ -320,10 +362,17 @@ export default function CircleWorkspace() {
           const newRing = payload.new as {
             sender_id: string;
             recipient_id: string;
-            message: string;
+            created_at?: string;
           };
           if (newRing.recipient_id === userId) {
-            showToast(`Received a gentle Ring: "${newRing.message}"`);
+            const ts = newRing.created_at
+              ? new Date(newRing.created_at).getTime()
+              : Date.now();
+            setRingHaloMap((prev) => {
+              const next = new Map(prev);
+              next.set(newRing.sender_id, ts);
+              return next;
+            });
           }
           loadInboxData(activeCircleId);
         }
@@ -510,9 +559,10 @@ export default function CircleWorkspace() {
           </span>
         </div>
 
-        <div className="flex items-start gap-3.5 overflow-x-auto no-scrollbar py-1">
+        <div className="flex items-start gap-3.5 overflow-x-auto no-scrollbar py-2 px-1.5 -mx-1.5">
           {filteredMembers.map((member) => {
             const sharedToday = sharedTodayMap.has(member.user_id);
+            const hasRingHalo = ringHaloMap.has(member.user_id);
             const shortName = member.display_name.split(" ")[0];
 
             return (
@@ -520,14 +570,23 @@ export default function CircleWorkspace() {
                 key={member.user_id}
                 type="button"
                 onClick={() => setDrawerMember(member)}
+                title={hasRingHalo ? "Sent a gentle Ring recently" : undefined}
                 className="flex flex-col items-center gap-1.5 shrink-0 group focus:outline-none cursor-pointer"
               >
                 <div className="relative">
+                  {hasRingHalo && (
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute -inset-1.5 rounded-full bg-[#7C9A82]/20 ring-2 ring-[#7C9A82]/55 shadow-[0_0_12px_rgba(124,154,130,0.35)]"
+                    />
+                  )}
                   <div
-                    className={`w-[60px] h-[60px] rounded-full p-[2px] ${
+                    className={`relative w-[60px] h-[60px] rounded-full p-[2px] ${
                       sharedToday
                         ? "ring-2 ring-[#4A6B5D] bg-[#FAF9F6]"
-                        : "ring-1 ring-[#E6E1D6] bg-[#FAF9F6]"
+                        : hasRingHalo
+                          ? "ring-1 ring-[#7C9A82] bg-[#FAF9F6]"
+                          : "ring-1 ring-[#E6E1D6] bg-[#FAF9F6]"
                     } group-hover:scale-[1.03] transition-transform flex items-center justify-center`}
                   >
                     {renderAvatar(member.display_name, member.avatar_url, 56)}
