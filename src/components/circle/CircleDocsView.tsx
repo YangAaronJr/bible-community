@@ -43,8 +43,10 @@ export default function CircleDocsView({
   const [saveState, setSaveState] = useState<"saved" | "saving">("saved");
   const [creating, setCreating] = useState(false);
 
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const contentSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const titleSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeDocIdRef = useRef<string | null>(null);
+  const lastSyncedDocIdRef = useRef<string | null>(null);
   const suppressUpdateRef = useRef(false);
 
   const memberMap = new Map(members.map((m) => [m.user_id, m]));
@@ -75,8 +77,8 @@ export default function CircleDocsView({
         prev.map((d) => (d.id === docId ? { ...d, content: html } : d))
       );
 
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(async () => {
+      if (contentSaveTimerRef.current) clearTimeout(contentSaveTimerRef.current);
+      contentSaveTimerRef.current = setTimeout(async () => {
         const supabase = createClient();
         await supabase
           .from("circle_docs")
@@ -111,19 +113,27 @@ export default function CircleDocsView({
     setLoading(true);
     loadDocs();
     return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (contentSaveTimerRef.current) clearTimeout(contentSaveTimerRef.current);
+      if (titleSaveTimerRef.current) clearTimeout(titleSaveTimerRef.current);
     };
   }, [loadDocs]);
 
-  // Sync editor content when switching docs
+  // Sync editor content only when switching docs
   useEffect(() => {
-    if (!editor || !activeDoc) return;
+    if (!activeDoc) {
+      lastSyncedDocIdRef.current = null;
+      return;
+    }
+    if (!editor) return;
+    if (lastSyncedDocIdRef.current === activeDoc.id) return;
+
+    lastSyncedDocIdRef.current = activeDoc.id;
     if (editor.getHTML() !== activeDoc.content) {
       suppressUpdateRef.current = true;
       editor.commands.setContent(activeDoc.content || "<p></p>");
       suppressUpdateRef.current = false;
     }
-  }, [editor, activeDocId, activeDoc]);
+  }, [editor, activeDoc]);
 
   // Live Supabase Realtime sync on circle_docs
   useEffect(() => {
@@ -146,13 +156,14 @@ export default function CircleDocsView({
             );
           } else if (payload.eventType === "UPDATE") {
             const updated = payload.new as CircleDocRow;
+            if (updated.updated_by === currentUserId) return;
             setDocs((prev) =>
               prev.map((d) => (d.id === updated.id ? updated : d))
             );
             if (
               updated.id === activeDocIdRef.current &&
-              updated.updated_by !== currentUserId &&
               editor &&
+              !editor.isFocused &&
               editor.getHTML() !== updated.content
             ) {
               suppressUpdateRef.current = true;
@@ -205,21 +216,22 @@ export default function CircleDocsView({
 
   async function handleTitleChange(nextTitle: string) {
     if (!activeDoc) return;
+    const docId = activeDoc.id;
     setDocs((prev) =>
-      prev.map((d) => (d.id === activeDoc.id ? { ...d, title: nextTitle } : d))
+      prev.map((d) => (d.id === docId ? { ...d, title: nextTitle } : d))
     );
     setSaveState("saving");
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(async () => {
+    if (titleSaveTimerRef.current) clearTimeout(titleSaveTimerRef.current);
+    titleSaveTimerRef.current = setTimeout(async () => {
       const supabase = createClient();
       await supabase
         .from("circle_docs")
         .update({
-          title: nextTitle.trim() || "Untitled Doc",
+          title: nextTitle,
           updated_by: currentUserId,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", activeDoc.id);
+        .eq("id", docId);
       setSaveState("saved");
     }, 500);
   }
@@ -316,7 +328,7 @@ export default function CircleDocsView({
                         : "bg-[#F4F1EA] text-[#6B7280] border border-[#E6E1D6] hover:text-[#1F2937]"
                     }`}
                   >
-                    {doc.title}
+                    {doc.title.trim() || "Untitled Doc"}
                   </button>
                 );
               })}
@@ -357,7 +369,7 @@ export default function CircleDocsView({
                       type="text"
                       value={activeDoc.title}
                       onChange={(e) => handleTitleChange(e.target.value)}
-                      placeholder="Document title..."
+                      placeholder="Untitled Doc"
                       className="w-full font-editorial text-lg font-semibold text-[#1F2937] bg-transparent focus:outline-none"
                     />
                   </div>
