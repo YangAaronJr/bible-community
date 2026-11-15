@@ -10,8 +10,11 @@ import {
   KeyRound,
   Loader2,
   LogOut,
+  Monitor,
+  Moon,
   PlusCircle,
   Shield,
+  Sun,
   Users,
 } from "lucide-react";
 import Navbar, { getInitials } from "@/components/ui/Navbar";
@@ -45,6 +48,9 @@ export default function SettingsPage() {
 
   const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [themePref, setThemePref] = useState<"light" | "dark" | "system">(
+    "system"
+  );
   const [circles, setCircles] = useState<CircleSummary[]>([]);
   const [activeCircleId, setActiveCircleId] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -139,8 +145,30 @@ export default function SettingsPage() {
   );
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedTheme = localStorage.getItem("theme_preference");
+      if (
+        savedTheme === "light" ||
+        savedTheme === "dark" ||
+        savedTheme === "system"
+      ) {
+        setThemePref(savedTheme);
+      }
+    }
     loadSettings();
   }, [loadSettings]);
+
+  function handleSelectTheme(next: "light" | "dark" | "system") {
+    setThemePref(next);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("theme_preference", next);
+      const isDark =
+        next === "dark" ||
+        (next === "system" &&
+          window.matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.classList.toggle("dark", isDark);
+    }
+  }
 
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -438,6 +466,45 @@ export default function SettingsPage() {
                   {savingProfile ? "Saving..." : "Save"}
                 </button>
               </form>
+            </section>
+
+            {/* Appearance (Light / Dark / System) */}
+            <section className="bg-white border border-[#E6E1D6] rounded-2xl p-5 space-y-3">
+              <div>
+                <h2 className="font-editorial text-base font-semibold text-[#1F2937]">
+                  Appearance
+                </h2>
+                <p className="text-xs text-[#6B7280]">
+                  Choose warm paper light mode or eye-friendly night reading
+                </p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 p-1 rounded-2xl bg-[#F4F1EA] border border-[#E6E1D6]">
+                {(
+                  [
+                    { id: "light", label: "Light", icon: Sun },
+                    { id: "dark", label: "Dark", icon: Moon },
+                    { id: "system", label: "System", icon: Monitor },
+                  ] as const
+                ).map(({ id, label, icon: Icon }) => {
+                  const active = themePref === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => handleSelectTheme(id)}
+                      className={`py-2 px-3 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        active
+                          ? "bg-[#4A6B5D] text-white shadow-2xs"
+                          : "text-[#6B7280] hover:text-[#1F2937]"
+                      }`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      <span>{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </section>
 
             {/* 2. Active Circle Invite Code & Leader Badge */}

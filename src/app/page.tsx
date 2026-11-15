@@ -255,15 +255,15 @@ export default function HomePage() {
                 cx="50"
                 cy="50"
                 r="42"
-                stroke="#E6E1D6"
+                stroke="var(--paper-border)"
                 strokeWidth="6"
-                fill="#FFFFFF"
+                fill="var(--paper-card)"
               />
               <circle
                 cx="50"
                 cy="50"
                 r="42"
-                stroke="#4A6B5D"
+                stroke="var(--sage-600)"
                 strokeWidth="6"
                 strokeLinecap="round"
                 fill="none"

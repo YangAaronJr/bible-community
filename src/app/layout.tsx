@@ -21,6 +21,16 @@ export const metadata: Metadata = {
     "A private, grace-centered Bible reading and small-group fellowship application.",
 };
 
+const THEME_INIT_SCRIPT = `
+(function() {
+  try {
+    var pref = localStorage.getItem('theme_preference') || 'system';
+    var isDark = pref === 'dark' || (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.classList.toggle('dark', isDark);
+  } catch (e) {}
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -29,8 +39,12 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${inter.variable} ${newsreader.variable} h-full antialiased`}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col bg-[#FAF9F6] text-[#1F2937] font-sans">
         {children}
       </body>

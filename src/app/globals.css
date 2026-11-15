@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #FAF9F6;
   --foreground: #1F2937;
@@ -16,6 +18,25 @@
   --sage-700: #3D5A4E;
   --slate-accent: #6B7280;
   --warm-gold: #B47B44;
+}
+
+.dark {
+  --background: #141413;
+  --foreground: #F3F2EE;
+  --paper: #141413;
+  --paper-card: #1E1E1C;
+  --paper-subtle: #252522;
+  --paper-border: #2E2E2B;
+  --charcoal: #F3F2EE;
+  --charcoal-muted: #A3A19A;
+  --sage-50: #212B25;
+  --sage-100: #212B25;
+  --sage-200: #324439;
+  --sage-600: #7C9A82;
+  --sage-700: #63826A;
+  --slate-accent: #A3A19A;
+  --warm-gold: #D49B63;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -40,6 +61,73 @@ body {
   background-color: var(--paper);
   color: var(--charcoal);
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+/* Warm Dark Mode Palette Harmonization across all screens */
+.dark .bg-\[\#FAF9F6\] {
+  background-color: #141413 !important;
+}
+.dark .bg-\[\#FAF9F6\]\/95 {
+  background-color: rgba(20, 20, 19, 0.94) !important;
+}
+.dark .bg-white,
+.dark .bg-\[\#FFFFFF\] {
+  background-color: #1E1E1C !important;
+}
+.dark .bg-\[\#F4F1EA\],
+.dark .bg-\[\#F3EFEA\],
+.dark .hover\:bg-\[\#FAF9F6\]:hover,
+.dark .hover\:bg-\[\#FCFBF8\]:hover {
+  background-color: #252522 !important;
+}
+.dark .hover\:bg-\[\#EAE5DA\]:hover,
+.dark .hover\:bg-\[\#F4F1EA\]:hover {
+  background-color: #2E2E2B !important;
+}
+.dark .bg-\[\#EBF1EE\],
+.dark .bg-\[\#EBF1EE\]\/70,
+.dark .bg-\[\#F3F7F4\],
+.dark .bg-\[\#F4F7F5\],
+.dark .bg-\[\#DDE6E1\],
+.dark .bg-\[\#E3EBE6\] {
+  background-color: #212B25 !important;
+}
+.dark .bg-\[\#FBF5EE\] {
+  background-color: #2A231B !important;
+}
+.dark .border-\[\#E6E1D6\],
+.dark .border-\[\#E5E0D8\],
+.dark .divide-\[\#E6E1D6\] > :not([hidden]) ~ :not([hidden]) {
+  border-color: #2E2E2B !important;
+}
+.dark .border-\[\#CFE0D6\],
+.dark .border-\[\#DCE8E0\],
+.dark .border-\[\#C5D7CC\] {
+  border-color: #324439 !important;
+}
+.dark .border-\[\#E7D3BC\] {
+  border-color: #433628 !important;
+}
+.dark .ring-\[\#E6E1D6\] {
+  --tw-ring-color: #2E2E2B !important;
+}
+.dark .text-\[\#1F2937\] {
+  color: #F3F2EE !important;
+}
+.dark .text-\[\#6B7280\],
+.dark .text-\[\#596579\],
+.dark .placeholder-\[\#6B7280\]::placeholder {
+  color: #A3A19A !important;
+}
+.dark .text-\[\#4A6B5D\],
+.dark .text-\[\#3D5A4E\],
+.dark .text-\[\#4B6F5B\],
+.dark .text-\[\#3D5A4A\] {
+  color: #7C9A82 !important;
+}
+.dark .text-\[\#B47B44\] {
+  color: #D49B63 !important;
 }
 
 .font-editorial {

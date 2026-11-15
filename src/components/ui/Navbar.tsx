@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BellRing, X } from "lucide-react";
+import { BellRing, Moon, Sun, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 interface RingBannerItem {
@@ -25,6 +25,21 @@ export default function Navbar() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [latestRing, setLatestRing] = useState<RingBannerItem | null>(null);
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsDark(document.documentElement.classList.contains("dark"));
+    }
+  }, [pathname]);
+
+  function toggleDarkMode() {
+    if (typeof window === "undefined") return;
+    const nextDark = !document.documentElement.classList.contains("dark");
+    document.documentElement.classList.toggle("dark", nextDark);
+    localStorage.setItem("theme_preference", nextDark ? "dark" : "light");
+    setIsDark(nextDark);
+  }
 
   useEffect(() => {
     const supabase = createClient();
@@ -138,8 +153,22 @@ export default function Navbar() {
             </span>
           </Link>
 
-          {/* Right: Circular Avatar + Display Name Chip -> /settings */}
-          <div className="flex items-center">
+          {/* Right: Quick Light/Dark Toggle + Circular Avatar + Display Name Chip -> /settings */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleDarkMode}
+              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+              title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              className="w-8 h-8 rounded-full bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] text-[#1F2937] flex items-center justify-center transition-colors cursor-pointer shrink-0"
+            >
+              {isDark ? (
+                <Sun className="w-4 h-4 text-[#B47B44]" />
+              ) : (
+                <Moon className="w-4 h-4 text-[#4A6B5D]" />
+              )}
+            </button>
+
             {isAuthenticated ? (
               <Link
                 href="/settings"
