@@ -10,7 +10,9 @@ import {
   Loader2,
   MessageSquare,
   Plus,
+  Search,
   Send,
+  Sparkles,
   Trash2,
   X,
 } from "lucide-react";
@@ -30,6 +32,7 @@ interface FeedMessage {
   parent_id: string | null;
   content: string;
   image_url: string | null;
+  ocr_text: string | null;
   created_at: string;
 }
 
@@ -87,12 +90,16 @@ export default function CircleFeed({
   const [showAttachmentTray, setShowAttachmentTray] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [extractOcr, setExtractOcr] = useState(false);
+  const [ocrStatus, setOcrStatus] = useState<string | null>(null);
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [replyingTo, setReplyingTo] = useState<FeedMessage | null>(null);
   const [prayingIds, setPrayingIds] = useState<Set<string>>(new Set());
   const [showDocs, setShowDocs] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
@@ -111,7 +118,7 @@ export default function CircleFeed({
     const { data, error: fetchError } = await supabase
       .from("messages")
       .select(
-        "id, circle_id, sender_id, recipient_id, parent_id, content, image_url, created_at"
+        "id, circle_id, sender_id, recipient_id, parent_id, content, image_url, ocr_text, created_at"
       )
       .eq("circle_id", circle.id)
       .is("recipient_id", null)
@@ -186,6 +193,8 @@ export default function CircleFeed({
 
   function clearSelectedFile() {
     setSelectedFile(null);
+    setExtractOcr(false);
+    setOcrStatus(null);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -201,8 +210,30 @@ export default function CircleFeed({
 
     try {
       let uploadedImageUrl: string | null = null;
+      let extractedOcrText: string | null = null;
 
       if (selectedFile) {
+        if (extractOcr) {
+          setOcrStatus("Scanning handwriting…");
+          try {
+            const { createWorker } = await import("tesseract.js");
+            const worker = await createWorker("eng");
+            try {
+              const { data } = await worker.recognize(selectedFile);
+              const cleaned = data.text?.replace(/\s+/g, " ").trim();
+              if (cleaned) {
+                extractedOcrText = cleaned;
+              }
+            } finally {
+              await worker.terminate();
+            }
+          } catch {
+            // Best-effort OCR: photo upload continues even if OCR fails
+          } finally {
+            setOcrStatus(null);
+          }
+        }
+
         const safeName = selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
         const filePath = `${currentUserId}/${Date.now()}-${safeName}`;
 
@@ -238,9 +269,10 @@ export default function CircleFeed({
           parent_id: replyingTo ? replyingTo.id : null,
           content: finalContent,
           image_url: uploadedImageUrl,
+          ocr_text: extractedOcrText,
         })
         .select(
-          "id, circle_id, sender_id, recipient_id, parent_id, content, image_url, created_at"
+          "id, circle_id, sender_id, recipient_id, parent_id, content, image_url, ocr_text, created_at"
         )
         .single();
 
@@ -291,6 +323,29 @@ export default function CircleFeed({
     }
   }
 
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const visiblePosts = normalizedQuery
+    ? topLevelPosts.filter((msg) => {
+        const authorName =
+          memberMap.get(msg.sender_id)?.display_name?.toLowerCase() || "";
+        const selfMatches =
+          msg.content.toLowerCase().includes(normalizedQuery) ||
+          (msg.ocr_text || "").toLowerCase().includes(normalizedQuery) ||
+          authorName.includes(normalizedQuery);
+        if (selfMatches) return true;
+        const replies = repliesByParent.get(msg.id) || [];
+        return replies.some((r) => {
+          const rAuthor =
+            memberMap.get(r.sender_id)?.display_name?.toLowerCase() || "";
+          return (
+            r.content.toLowerCase().includes(normalizedQuery) ||
+            (r.ocr_text || "").toLowerCase().includes(normalizedQuery) ||
+            rAuthor.includes(normalizedQuery)
+          );
+        });
+      })
+    : topLevelPosts;
+
   if (showDocs) {
     return (
       <CircleDocsView
@@ -327,16 +382,62 @@ export default function CircleFeed({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setShowDocs(true)}
-          title="Open Shared Circle Docs"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#EBF1EE] hover:bg-[#DCE7E1] text-[#4A6B5D] text-xs font-semibold transition-colors shrink-0 cursor-pointer"
-        >
-          <FileText className="w-3.5 h-3.5" />
-          <span>Docs</span>
-        </button>
-      </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSearch((prev) => {
+                    if (prev) setSearchQuery("");
+                    return !prev;
+                  });
+                }}
+                aria-label="Search reflections and notebook text"
+                title="Search chat & notebook text"
+                className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
+                  showSearch || searchQuery
+                    ? "bg-[#EBF1EE] text-[#4A6B5D]"
+                    : "bg-[#F4F1EA] hover:bg-[#EAE5DA] text-[#6B7280]"
+                }`}
+              >
+                <Search className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowDocs(true)}
+                title="Open Shared Circle Docs"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#EBF1EE] hover:bg-[#DCE7E1] text-[#4A6B5D] text-xs font-semibold transition-colors shrink-0 cursor-pointer"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Docs</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Subtle Circle Chat & Notebook OCR Search Bar */}
+          {showSearch && (
+            <div className="px-4 py-2 bg-[#FAF9F6] border-b border-[#E6E1D6] flex items-center gap-2 shrink-0">
+              <Search className="w-3.5 h-3.5 text-[#6B7280] shrink-0" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search reflections & extracted notebook notes..."
+                autoFocus
+                className="flex-1 bg-transparent text-xs text-[#1F2937] placeholder-[#6B7280] focus:outline-none"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  aria-label="Clear search"
+                  className="text-[#6B7280] hover:text-[#1F2937] cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          )}
 
       {/* Scrollable Message Feed */}
       <div
@@ -348,18 +449,19 @@ export default function CircleFeed({
             <Loader2 className="w-4 h-4 animate-spin mr-2" />
             Loading live fellowship...
           </div>
-        ) : topLevelPosts.length === 0 ? (
+        ) : visiblePosts.length === 0 ? (
           <div className="py-12 text-center space-y-1">
             <p className="font-editorial text-base font-medium text-[#1F2937]">
-              Quiet Fellowship Space
+              {normalizedQuery ? "No matching notes" : "Quiet Fellowship Space"}
             </p>
             <p className="text-xs text-[#6B7280]">
-              Share a reflection, prayer request, or handwritten notebook photo
-              below.
+              {normalizedQuery
+                ? "Try another word from a reflection or notebook scan."
+                : "Share a reflection, prayer request, or handwritten notebook photo below."}
             </p>
           </div>
         ) : (
-          topLevelPosts.map((msg) => {
+          visiblePosts.map((msg) => {
             const author = memberMap.get(msg.sender_id);
             const authorName = author?.display_name || "Fellow Reader";
             const isLeader = author?.role === "leader";
@@ -462,6 +564,22 @@ export default function CircleFeed({
                       <p className="text-[13px] leading-relaxed text-[#1F2937] whitespace-pre-wrap">
                         {displayContent}
                       </p>
+                      {msg.ocr_text && (
+                        <details
+                          open={Boolean(
+                            normalizedQuery &&
+                              msg.ocr_text.toLowerCase().includes(normalizedQuery)
+                          )}
+                          className="mt-2 rounded-xl bg-[#FAF9F6] border border-[#E6E1D6] px-2.5 py-1.5 text-[11px] text-[#6B7280]"
+                        >
+                          <summary className="cursor-pointer font-medium text-[#4A6B5D] select-none">
+                            Extracted notebook text (searchable)
+                          </summary>
+                          <p className="mt-1 leading-relaxed text-[#1F2937] whitespace-pre-wrap">
+                            {msg.ocr_text}
+                          </p>
+                        </details>
+                      )}
                       <div className="flex items-center justify-end gap-3 mt-1.5">
                         <button
                           type="button"
@@ -680,16 +798,29 @@ export default function CircleFeed({
             {error ? (
               <span className="text-red-600 truncate">{error}</span>
             ) : previewUrl ? (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2.5 min-w-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={previewUrl}
                   alt="Preview"
-                  className="w-8 h-8 rounded-lg object-cover border border-[#E6E1D6]"
+                  className="w-8 h-8 rounded-lg object-cover border border-[#E6E1D6] shrink-0"
                 />
-                <span className="text-[#B47B44] font-medium">
-                  Notebook photo attached
-                </span>
+                <div className="min-w-0">
+                  <span className="block text-[#B47B44] font-medium truncate">
+                    {ocrStatus || "Notebook photo attached"}
+                  </span>
+                  <label className="inline-flex items-center gap-1.5 text-[11px] text-[#4A6B5D] font-medium cursor-pointer select-none mt-0.5">
+                    <input
+                      type="checkbox"
+                      checked={extractOcr}
+                      disabled={posting}
+                      onChange={(e) => setExtractOcr(e.target.checked)}
+                      className="rounded border-[#E6E1D6] accent-[#4A6B5D] cursor-pointer"
+                    />
+                    <Sparkles className="w-3 h-3 shrink-0" />
+                    <span>Extract text for search (OCR)</span>
+                  </label>
+                </div>
               </div>
             ) : replyingTo ? (
               <span className="text-[#4A6B5D] font-medium truncate">
