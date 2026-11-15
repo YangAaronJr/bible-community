@@ -5,6 +5,7 @@ import {
   BookOpen,
   Camera,
   ChevronLeft,
+  FileText,
   Heart,
   Loader2,
   MessageSquare,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { getInitials } from "@/components/ui/Navbar";
 import { createClient } from "@/lib/supabase/client";
+import CircleDocsView from "@/components/circle/CircleDocsView";
 import type {
   CircleInfo,
   CircleMemberProfile,
@@ -90,6 +92,7 @@ export default function CircleFeed({
 
   const [replyingTo, setReplyingTo] = useState<FeedMessage | null>(null);
   const [prayingIds, setPrayingIds] = useState<Set<string>>(new Set());
+  const [showDocs, setShowDocs] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
@@ -288,6 +291,17 @@ export default function CircleFeed({
     }
   }
 
+  if (showDocs) {
+    return (
+      <CircleDocsView
+        circle={circle}
+        members={members}
+        currentUserId={currentUserId}
+        onBack={() => setShowDocs(false)}
+      />
+    );
+  }
+
   return (
     <div className="bg-[#FAF9F6] border border-[#E6E1D6] rounded-3xl overflow-hidden flex flex-col h-[calc(100dvh-9.5rem)] shadow-2xs">
       {/* Top Group Chat Bar matching docs/ui-reference.html */}
@@ -312,6 +326,16 @@ export default function CircleFeed({
             </p>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setShowDocs(true)}
+          title="Open Shared Circle Docs"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#EBF1EE] hover:bg-[#DCE7E1] text-[#4A6B5D] text-xs font-semibold transition-colors shrink-0 cursor-pointer"
+        >
+          <FileText className="w-3.5 h-3.5" />
+          <span>Docs</span>
+        </button>
       </div>
 
       {/* Scrollable Message Feed */}
