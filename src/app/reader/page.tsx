@@ -261,14 +261,24 @@ function ReaderContent() {
     circles.find((c) => c.id === activeCircleId)?.name || null;
 
   return (
-    <main className="flex-1 max-w-2xl w-full mx-auto px-4 py-8 space-y-6">
-      {/* Top Reader Controls */}
-      <div className="bg-white border border-[#E5E0D8] rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
-        <div className="flex items-center gap-2">
+    <main className="flex-1 max-w-xl w-full mx-auto px-4 pt-4 pb-36 space-y-5">
+      {/* Centered Compact Top Navigation Bar */}
+      <div className="flex items-center justify-center">
+        <div className="inline-flex items-center gap-1.5 bg-white border border-[#E6E1D6] rounded-full p-1.5 shadow-2xs">
+          <button
+            type="button"
+            onClick={goPrevChapter}
+            title="Previous Chapter"
+            className="w-8 h-8 rounded-full bg-[#F4F1EA] hover:bg-[#EAE5DA] text-[#1F2937] flex items-center justify-center transition-colors cursor-pointer"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
           <select
             value={book}
             onChange={(e) => navigateTo(e.target.value, 1)}
-            className="px-3 py-1.5 rounded-lg border border-[#E5E0D8] bg-[#FAF9F6] text-xs font-medium text-[#1F2937]"
+            aria-label="Select Book"
+            className="px-2.5 py-1 rounded-full bg-transparent text-xs font-semibold text-[#1F2937] focus:outline-none cursor-pointer"
           >
             {BIBLE_BOOKS.map((b) => (
               <option key={b.name} value={b.name}>
@@ -277,55 +287,29 @@ function ReaderContent() {
             ))}
           </select>
 
+          <span className="text-[#E6E1D6]">·</span>
+
           <select
             value={chapter}
             onChange={(e) => navigateTo(book, Number(e.target.value))}
-            className="px-3 py-1.5 rounded-lg border border-[#E5E0D8] bg-[#FAF9F6] text-xs font-medium text-[#1F2937]"
+            aria-label="Select Chapter"
+            className="px-2.5 py-1 rounded-full bg-transparent text-xs font-semibold text-[#4A6B5D] focus:outline-none cursor-pointer"
           >
             {Array.from(
               { length: currentBookMeta.chapters },
               (_, i) => i + 1
             ).map((ch) => (
               <option key={ch} value={ch}>
-                Chapter {ch}
+                Ch. {ch}
               </option>
             ))}
           </select>
-        </div>
 
-        <div className="flex items-center gap-2">
-          {circles.length > 1 && (
-            <select
-              value={activeCircleId || ""}
-              onChange={(e) => {
-                setActiveCircleId(e.target.value);
-                if (typeof window !== "undefined") {
-                  localStorage.setItem("active_circle_id", e.target.value);
-                }
-              }}
-              className="px-2.5 py-1.5 rounded-lg border border-[#E5E0D8] bg-[#FAF9F6] text-xs text-[#596579]"
-            >
-              {circles.map((c) => (
-                <option key={c.id} value={c.id}>
-                  Circle: {c.name}
-                </option>
-              ))}
-            </select>
-          )}
-
-          <button
-            type="button"
-            onClick={goPrevChapter}
-            title="Previous Chapter"
-            className="p-1.5 rounded-lg border border-[#E5E0D8] bg-[#FAF9F6] hover:bg-[#F3EFEA] text-[#1F2937] cursor-pointer"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
           <button
             type="button"
             onClick={goNextChapter}
             title="Next Chapter"
-            className="p-1.5 rounded-lg border border-[#E5E0D8] bg-[#FAF9F6] hover:bg-[#F3EFEA] text-[#1F2937] cursor-pointer"
+            className="w-8 h-8 rounded-full bg-[#F4F1EA] hover:bg-[#EAE5DA] text-[#1F2937] flex items-center justify-center transition-colors cursor-pointer"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -333,31 +317,30 @@ function ReaderContent() {
       </div>
 
       {/* Chapter Title Banner */}
-      <div className="text-center space-y-1 pt-2">
-        <p className="text-[11px] uppercase tracking-widest text-[#4B6F5B] font-semibold">
-          World English Bible (Public Domain)
-        </p>
-        <h1 className="text-3xl font-serif font-semibold text-[#1F2937]">
+      <div className="text-center space-y-1">
+        <h1 className="font-editorial text-3xl font-medium text-[#1F2937] tracking-tight">
           {book} {chapter}
         </h1>
-        <p className="text-xs text-[#596579]">
-          Tap any verse to read or share Circle notes anchored to that verse.
+        <p className="text-[11px] text-[#6B7280]">
+          Tap any verse for Circle reflections
         </p>
       </div>
 
       {/* Single-Column Scripture Reader */}
-      <article className="bg-white border border-[#E5E0D8] rounded-2xl p-6 sm:p-10 shadow-2xs">
+      <article className="bg-white border border-[#E6E1D6] rounded-2xl p-6 sm:p-8 shadow-2xs">
         {loadingText ? (
-          <div className="py-16 flex flex-col items-center justify-center gap-2 text-sm text-[#596579]">
-            <Loader2 className="w-5 h-5 animate-spin text-[#4B6F5B]" />
-            <span>Loading {book} {chapter}...</span>
+          <div className="py-16 flex flex-col items-center justify-center gap-2 text-xs text-[#6B7280]">
+            <Loader2 className="w-5 h-5 animate-spin text-[#4A6B5D]" />
+            <span>
+              Loading {book} {chapter}...
+            </span>
           </div>
         ) : textError ? (
           <div className="p-6 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 text-center">
             {textError}
           </div>
         ) : (
-          <div className="space-y-3 font-serif text-lg leading-relaxed text-[#1F2937]">
+          <div className="space-y-3 font-editorial text-[17.5px] leading-relaxed text-[#1F2937]">
             {verses.map((v) => {
               const verseNotes = notes.filter(
                 (n) => n.verse_start <= v.verse && n.verse_end >= v.verse
@@ -368,19 +351,19 @@ function ReaderContent() {
                 <div
                   key={v.verse}
                   onClick={() => setSelectedVerse(v)}
-                  className={`group rounded-xl px-3 py-2 -mx-3 transition-colors cursor-pointer ${
+                  className={`group rounded-xl px-3 py-1.5 -mx-3 transition-colors cursor-pointer ${
                     hasNotes
-                      ? "bg-[#F4F7F5] hover:bg-[#E3EBE6]/70 border-l-2 border-[#4B6F5B]"
+                      ? "bg-[#EBF1EE]/70 hover:bg-[#EBF1EE] border-l-2 border-[#4A6B5D]"
                       : "hover:bg-[#FAF9F6]"
                   }`}
                 >
-                  <sup className="text-xs font-sans font-semibold text-[#4B6F5B] mr-2 select-none">
+                  <sup className="text-[11px] font-sans font-semibold text-[#4A6B5D] mr-2 select-none">
                     {v.verse}
                   </sup>
                   <span>{v.text}</span>
                   {hasNotes && (
-                    <span className="inline-flex items-center gap-1 ml-2 px-2 py-0.5 rounded-full bg-[#E3EBE6] text-[#3D5A4A] font-sans text-[11px] font-medium align-middle">
-                      <MessageSquare className="w-3 h-3" />
+                    <span className="inline-flex items-center gap-1 ml-2 px-2 py-0.5 rounded-full bg-[#EBF1EE] text-[#4A6B5D] font-sans text-[10.5px] font-semibold align-middle">
+                      <MessageSquare className="w-2.5 h-2.5" />
                       {verseNotes.length}
                     </span>
                   )}
@@ -391,24 +374,24 @@ function ReaderContent() {
         )}
       </article>
 
-      {/* Bottom Completion & Chapter Navigation */}
-      <div className="bg-white border border-[#E5E0D8] rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-2xs">
-        <div className="flex flex-wrap items-center gap-2">
+      {/* Centered Floating Bottom Bar (Mark Chapter Read / Physical Bible) */}
+      <div className="fixed bottom-20 inset-x-0 z-20 px-4 flex justify-center pointer-events-none">
+        <div className="pointer-events-auto inline-flex items-center gap-2 bg-[#FAF9F6]/95 backdrop-blur-md border border-[#E6E1D6] rounded-full p-1.5 shadow-lg">
           <button
             type="button"
             disabled={savingCompletion}
             onClick={() => handleComplete(false)}
-            className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+            className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-colors cursor-pointer ${
               completionState.completed && !completionState.physical
-                ? "bg-[#4B6F5B] text-white"
-                : "bg-[#FAF9F6] border border-[#E5E0D8] text-[#1F2937] hover:bg-[#F3EFEA]"
+                ? "bg-[#4A6B5D] text-white"
+                : "bg-white hover:bg-[#F4F1EA] text-[#1F2937]"
             }`}
           >
-            <CheckCircle2 className="w-4 h-4" />
+            <CheckCircle2 className="w-3.5 h-3.5" />
             <span>
               {completionState.completed && !completionState.physical
-                ? "✓ Completed in App"
-                : "Mark Read in App"}
+                ? "Chapter Read"
+                : "Mark Chapter Read"}
             </span>
           </button>
 
@@ -416,37 +399,14 @@ function ReaderContent() {
             type="button"
             disabled={savingCompletion}
             onClick={() => handleComplete(true)}
-            className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-medium border transition-colors cursor-pointer ${
+            className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-colors cursor-pointer ${
               completionState.completed && completionState.physical
-                ? "bg-[#E3EBE6] border-[#4B6F5B] text-[#3D5A4A]"
-                : "bg-[#FAF9F6] border-[#E5E0D8] text-[#1F2937] hover:bg-[#F3EFEA]"
+                ? "bg-[#B47B44] text-white"
+                : "bg-[#FBF5EE] hover:bg-[#F6EAD9] text-[#B47B44]"
             }`}
           >
-            <BookMarked className="w-4 h-4 text-[#4B6F5B]" />
-            <span>
-              {completionState.completed && completionState.physical
-                ? "✓ Checked Off (Physical Bible)"
-                : "Checked Off (Physical Bible)"}
-            </span>
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={goPrevChapter}
-            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-[#E5E0D8] text-xs font-medium text-[#596579] hover:text-[#1F2937] cursor-pointer"
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-            <span>Previous</span>
-          </button>
-          <button
-            type="button"
-            onClick={goNextChapter}
-            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-[#1F2937] text-white text-xs font-medium hover:bg-[#374151] cursor-pointer"
-          >
-            <span>Next Chapter</span>
-            <ChevronRight className="w-3.5 h-3.5" />
+            <BookMarked className="w-3.5 h-3.5" />
+            <span>Physical Bible</span>
           </button>
         </div>
       </div>
