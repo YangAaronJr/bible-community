@@ -2,7 +2,7 @@ import { sendNotification, setVapidDetails } from "web-push";
 import { createClient } from "@/lib/supabase/server";
 
 interface NotifyRingBody {
-  circleId?: string;
+  circleId?: string | null;
   recipientId?: string;
   message?: string;
 }
@@ -22,11 +22,11 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const circleId = body.circleId?.trim();
+  const circleId = body.circleId?.trim() || null;
   const recipientId = body.recipientId?.trim();
-  if (!circleId || !recipientId) {
+  if (!recipientId) {
     return Response.json(
-      { error: "circleId and recipientId are required" },
+      { error: "recipientId is required" },
       { status: 400 }
     );
   }
@@ -70,8 +70,8 @@ export async function POST(request: Request) {
   const payload = JSON.stringify({
     title: `Gentle Ring from ${senderFirst}`,
     body: body.message || "Praying for your time in the Word today",
-    url: "/circle",
-    tag: `ring-${circleId}-${user.id}`,
+    url: circleId ? `/circles/${circleId}` : "/social",
+    tag: `ring-${circleId || "friend"}-${user.id}`,
   });
 
   const results = await Promise.allSettled(

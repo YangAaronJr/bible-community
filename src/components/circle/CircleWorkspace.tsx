@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
-  BellRing,
   BookOpen,
   ChevronLeft,
   FileText,
@@ -13,10 +13,8 @@ import {
   Search,
   Settings,
   Users,
-  X,
 } from "lucide-react";
 import { getInitials } from "@/components/ui/Navbar";
-import { triggerRingPush } from "@/lib/notifications/push-client";
 import { READING_PLAN_PRESETS } from "@/lib/plans/reading-plans";
 import { createClient } from "@/lib/supabase/client";
 import type {
@@ -28,7 +26,6 @@ import CircleFeed from "@/components/circle/CircleFeed";
 import CirclePrayerSection from "@/components/circle/CirclePrayerSection";
 import DirectMessageDrawer from "@/components/circle/DirectMessageDrawer";
 
-const RING_COOLDOWN_MS = 10 * 60 * 1000;
 const RING_HALO_MS = 15 * 60 * 1000;
 
 interface SharedReflection {
@@ -56,13 +53,6 @@ function formatRelativeTime(iso: string | null | undefined): string {
   const diffHr = Math.floor(diffMin / 60);
   if (diffHr < 24) return `${diffHr}h`;
   return `${Math.floor(diffHr / 24)}d`;
-}
-
-function formatClockTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-  });
 }
 
 function renderAvatar(
@@ -94,6 +84,7 @@ export default function CircleWorkspace({
 }: {
   circleId?: string;
 }) {
+  const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
   const [circles, setCircles] = useState<CircleInfo[]>([]);
   const [activeCircleId, setActiveCircleId] = useState<string | null>(null);
@@ -106,11 +97,6 @@ export default function CircleWorkspace({
     "inbox"
   );
   const [dmTarget, setDmTarget] = useState<CircleMemberProfile | null>(null);
-
-  // Slide-Up Member Card Drawer
-  const [drawerMember, setDrawerMember] = useState<CircleMemberProfile | null>(
-    null
-  );
 
   // Search filter
   const [showSearch, setShowSearch] = useState(false);
@@ -129,15 +115,8 @@ export default function CircleWorkspace({
     Map<string, MessageSummary>
   >(new Map());
 
-  // 10-minute outgoing Ring cooldown, 15-minute incoming Ring avatar halo, & toast feedback
-  const [rungMemberIds, setRungMemberIds] = useState<Set<string>>(new Set());
+  // 15-minute incoming Ring avatar halo
   const [ringHaloMap, setRingHaloMap] = useState<Map<string, number>>(new Map());
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  function showToast(msg: string) {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 2800);
-  }
 
   const loadInboxData = useCallback(async (preferredCircleId?: string) => {
     const supabase = createClient();
@@ -227,7 +206,6 @@ export default function CircleWorkspace({
     const now = Date.now();
     const since24h = new Date(now - 24 * 60 * 60 * 1000).toISOString();
     const since15m = new Date(now - RING_HALO_MS).toISOString();
-    const since10mMs = now - RING_COOLDOWN_MS;
 
     const [{ data: notesToday }, { data: allMessages }, { data: recentRings }] =
       await Promise.all([
@@ -296,13 +274,9 @@ export default function CircleWorkspace({
       }
     }
 
-    const outgoingRungIds = new Set<string>();
     const incomingHaloMap = new Map<string, number>();
     for (const r of recentRings || []) {
       const ts = new Date(r.created_at).getTime();
-      if (r.sender_id === user.id && ts >= since10mMs) {
-        outgoingRungIds.add(r.recipient_id);
-      }
       if (r.recipient_id === user.id && now - ts < RING_HALO_MS) {
         const prevTs = incomingHaloMap.get(r.sender_id) ?? 0;
         if (ts > prevTs) incomingHaloMap.set(r.sender_id, ts);
@@ -312,7 +286,6 @@ export default function CircleWorkspace({
     setSharedTodayMap(reflectionMap);
     setLatestGroupMsg(newestGroup);
     setLatestDmByPeer(dmMap);
-    setRungMemberIds(outgoingRungIds);
     setRingHaloMap(incomingHaloMap);
     setLoading(false);
   }, [circleId]);
@@ -397,39 +370,6 @@ export default function CircleWorkspace({
     };
   }, [activeCircleId, userId, loadInboxData]);
 
-  async function handleSendRing(target: CircleMemberProfile) {
-    if (!activeCircleId || !userId) return;
-    if (rungMemberIds.has(target.user_id)) {
-      showToast("Already rung · 10m gentle cooldown active");
-      return;
-    }
-
-    const supabase = createClient();
-    const ringMessage = "Praying for your time in the Word today";
-    const { error } = await supabase.from("rings").insert({
-      circle_id: activeCircleId,
-      sender_id: userId,
-      recipient_id: target.user_id,
-      message: ringMessage,
-    });
-
-    if (error) {
-      showToast("Already rung · 10m gentle cooldown active");
-      return;
-    }
-
-    triggerRingPush({
-      circleId: activeCircleId,
-      recipientId: target.user_id,
-      message: ringMessage,
-    });
-
-    setRungMemberIds((prev) => new Set(prev).add(target.user_id));
-    showToast(
-      `Sent gentle Ring to ${target.display_name.split(" ")[0]}: "${ringMessage}"`
-    );
-  }
-
   const activeCircle = circles.find((c) => c.id === activeCircleId) || null;
   const memberById = new Map(members.map((m) => [m.user_id, m]));
 
@@ -454,11 +394,11 @@ export default function CircleWorkspace({
             : "Join an invite-only circle (up to 12 members) or start a new one."}
         </p>
         <Link
-          href="/circle"
+          href="/social"
           className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-[#4A6B5D] hover:bg-[#3D5A4E] dark:bg-[#63826A] dark:hover:bg-[#7C9A82] text-white text-xs font-medium transition-colors"
         >
           <ChevronLeft className="w-3.5 h-3.5" />
-          <span>Back to Circles</span>
+          <span>Back to Social</span>
         </Link>
       </div>
     );
@@ -475,7 +415,7 @@ export default function CircleWorkspace({
             setActiveView("inbox");
             loadInboxData(activeCircle.id);
           }}
-          onSelectMember={(m) => setDrawerMember(m)}
+          onSelectMember={(m) => router.push(`/members/${m.user_id}`)}
         />
       </div>
     );
@@ -501,13 +441,6 @@ export default function CircleWorkspace({
       "Member"
     : null;
 
-  const drawerReflection = drawerMember
-    ? sharedTodayMap.get(drawerMember.user_id) || null
-    : null;
-  const isDrawerMemberRung = drawerMember
-    ? rungMemberIds.has(drawerMember.user_id)
-    : false;
-
   const sharedPlanTitle = activeCircle.shared_plan_id
     ? READING_PLAN_PRESETS.find((p) => p.id === activeCircle.shared_plan_id)
         ?.title || activeCircle.shared_plan_id
@@ -515,20 +448,12 @@ export default function CircleWorkspace({
 
   return (
     <div className="space-y-5 relative">
-      {/* Gentle Toast Banner */}
-      {toastMessage && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 max-w-sm w-[92%] bg-[#1F2937] dark:bg-[#2E2E2B] text-[#FAF9F6] dark:text-[#F3F2EE] text-xs font-medium px-4 py-2.5 rounded-2xl shadow-lg flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-[#7FB09A] shrink-0" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
-      {/* Circle Header: Back to /circle, Avatar + Name + Shared Plan Pill, Search & Settings */}
+      {/* Circle Header: Back to /social, Avatar + Name + Shared Plan Pill, Search & Settings */}
       <div className="flex items-center justify-between gap-2.5 pt-1">
         <div className="flex items-center gap-2.5 min-w-0">
           <Link
-            href="/circle"
-            aria-label="Back to Circles"
+            href="/social"
+            aria-label="Back to Social"
             className="w-9 h-9 rounded-full bg-[#F4F1EA] border border-[#E6E1D6] flex items-center justify-center text-[#1F2937] hover:bg-[#EAE5DA] transition-colors shrink-0"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -590,7 +515,7 @@ export default function CircleWorkspace({
             Your Circle · {members.length} of {activeCircle.max_members}
           </span>
           <span className="text-[11px] text-[#4A6B5D] font-medium">
-            Tap avatar for notes
+            Tap avatar for profile
           </span>
         </div>
 
@@ -601,12 +526,11 @@ export default function CircleWorkspace({
             const shortName = member.display_name.split(" ")[0];
 
             return (
-              <button
+              <Link
                 key={member.user_id}
-                type="button"
-                onClick={() => setDrawerMember(member)}
+                href={`/members/${member.user_id}`}
                 title={hasRingHalo ? "Sent a gentle Ring recently" : undefined}
-                className="flex flex-col items-center gap-1.5 shrink-0 group focus:outline-none cursor-pointer"
+                className="flex flex-col items-center gap-1.5 shrink-0 group focus:outline-none"
               >
                 <div className="relative">
                   {hasRingHalo && (
@@ -641,7 +565,7 @@ export default function CircleWorkspace({
                 <span className="text-[11.5px] font-medium text-[#1F2937] mt-0.5 max-w-[64px] truncate">
                   {shortName}
                 </span>
-              </button>
+              </Link>
             );
           })}
         </div>
@@ -694,7 +618,7 @@ export default function CircleWorkspace({
           circle={activeCircle}
           members={members}
           currentUserId={userId}
-          onSelectMember={(m) => setDrawerMember(m)}
+          onSelectMember={(m) => router.push(`/members/${m.user_id}`)}
         />
       ) : circleTab === "docs" && userId ? (
         <CircleDocsView
@@ -822,150 +746,18 @@ export default function CircleWorkspace({
         </>
       )}
 
-      {/* Slide-Up Member Card Drawer Overlay matching docs/ui-reference.html */}
-      {drawerMember && (
-        <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setDrawerMember(null);
-          }}
-          className="fixed inset-0 z-50 bg-[#1F2937]/30 backdrop-blur-[1px] flex flex-col justify-end"
-        >
-          <div className="max-w-xl w-full mx-auto bg-[#FAF9F6] rounded-t-[30px] border-t border-[#E6E1D6] shadow-2xl px-5 pt-3 pb-8 flex flex-col">
-            {/* Drag Handle */}
-            <div className="w-10 h-1 rounded-full bg-[#D6D0C4] mx-auto mb-4" />
-
-            {/* Header Row */}
-            <div className="flex items-start justify-between gap-3 mb-4">
-              <div className="flex items-center gap-3.5">
-                <div className="rounded-full ring-2 ring-[#E6E1D6] p-0.5 bg-white">
-                  {renderAvatar(
-                    drawerMember.display_name,
-                    drawerMember.avatar_url,
-                    68
-                  )}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-editorial text-xl font-semibold text-[#1F2937]">
-                      {drawerMember.display_name}
-                    </h3>
-                    {drawerMember.role === "leader" && (
-                      <span className="px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-[#EBF1EE] text-[#4A6B5D]">
-                        Leader / Pastor
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-[#6B7280] mt-0.5">
-                    Member of {activeCircle.name}
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setDrawerMember(null)}
-                aria-label="Close member drawer"
-                className="w-8 h-8 rounded-full bg-[#F4F1EA] text-[#6B7280] hover:text-[#1F2937] flex items-center justify-center cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Shared Today Card (Voluntary notes only — zero private reading progress) */}
-            <div className="bg-white border border-[#E6E1D6] rounded-2xl p-4 mb-5">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-[#4A6B5D]">
-                  Shared Today
-                </span>
-                {drawerReflection && (
-                  <span className="text-[11px] text-[#6B7280]">
-                    {formatClockTime(drawerReflection.created_at)}
-                  </span>
-                )}
-              </div>
-
-              {drawerReflection ? (
-                <>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#F4F1EA] text-[#1F2937] text-xs font-medium mb-2">
-                    <BookOpen className="w-3.5 h-3.5 text-[#4A6B5D]" />
-                    <span>{drawerReflection.passage}</span>
-                  </div>
-                  <p className="font-editorial text-[15px] leading-relaxed text-[#1F2937]">
-                    &ldquo;{drawerReflection.content}&rdquo;
-                  </p>
-                </>
-              ) : (
-                <p className="text-xs text-[#6B7280] leading-relaxed py-2">
-                  No reflection shared today — resting in grace. Private reading
-                  progress stays personal.
-                </p>
-              )}
-            </div>
-
-            {/* Two Large Thumb-Friendly Action Buttons */}
-            {drawerMember.user_id !== userId ? (
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const target = drawerMember;
-                    setDrawerMember(null);
-                    setDmTarget(target);
-                  }}
-                  className="py-3 px-4 rounded-2xl bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white text-sm font-medium flex items-center justify-center gap-2 shadow-2xs transition-colors cursor-pointer"
-                >
-                  <MessageSquare className="w-4 h-4" />
-                  <span>Message</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleSendRing(drawerMember)}
-                  className={`py-3 px-4 rounded-2xl border text-sm font-medium flex items-center justify-center gap-2 transition-colors cursor-pointer ${
-                    isDrawerMemberRung
-                      ? "bg-[#F4F1EA] border-[#E6E1D6] text-[#6B7280]"
-                      : "bg-[#FBF5EE] border-[#E7D3BC] text-[#B47B44] hover:bg-[#F6EAD9]"
-                  }`}
-                >
-                  <BellRing className="w-4 h-4" />
-                  <span>{isDrawerMemberRung ? "Rung · 10m" : "Ring"}</span>
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                <Link
-                  href="/reader"
-                  onClick={() => setDrawerMember(null)}
-                  className="py-3 px-4 rounded-2xl bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white text-sm font-medium flex items-center justify-center gap-2 shadow-2xs transition-colors"
-                >
-                  <BookOpen className="w-4 h-4" />
-                  <span>Open Reader</span>
-                </Link>
-                <Link
-                  href={`/circles/${activeCircle.id}/settings`}
-                  onClick={() => setDrawerMember(null)}
-                  className="py-3 px-4 rounded-2xl bg-[#F4F1EA] border border-[#E6E1D6] text-[#1F2937] text-sm font-medium flex items-center justify-center gap-2 transition-colors"
-                >
-                  <Settings className="w-4 h-4" />
-                  <span>Circle Settings</span>
-                </Link>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* 1-on-1 Direct Message Drawer */}
       {activeCircle && userId && dmTarget && (
         <DirectMessageDrawer
           circle={activeCircle}
           currentUserId={userId}
           recipient={dmTarget}
+          members={members}
           onClose={() => {
             setDmTarget(null);
             loadInboxData(activeCircle.id);
           }}
-          onOpenMemberCard={(m) => setDrawerMember(m)}
+          onOpenMemberCard={(m) => router.push(`/members/${m.user_id}`)}
         />
       )}
     </div>

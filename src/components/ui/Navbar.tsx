@@ -18,6 +18,7 @@ export default function Navbar() {
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [hasSocialBadge, setHasSocialBadge] = useState(false);
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
@@ -45,6 +46,7 @@ export default function Navbar() {
         setIsAuthenticated(false);
         setDisplayName(null);
         setAvatarUrl(null);
+        setHasSocialBadge(false);
         return;
       }
       setIsAuthenticated(true);
@@ -61,6 +63,50 @@ export default function Navbar() {
           "Reader"
       );
       setAvatarUrl(profile?.avatar_url || null);
+
+      // Subtle sage dot on Social tab when incoming requests or unread friend DMs exist
+      try {
+        const { data: friendships } = await supabase
+          .from("friendships")
+          .select("id, addressee_id, status")
+          .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
+
+        const hasIncoming = (friendships || []).some(
+          (f) => f.status === "pending" && f.addressee_id === user.id
+        );
+        if (hasIncoming) {
+          setHasSocialBadge(true);
+          return;
+        }
+
+        const acceptedIds = (friendships || [])
+          .filter((f) => f.status === "accepted")
+          .map((f) => f.id);
+
+        if (acceptedIds.length > 0) {
+          const { data: dmRows } = await supabase
+            .from("messages")
+            .select("friendship_id, created_at")
+            .in("friendship_id", acceptedIds)
+            .neq("sender_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(20);
+
+          const unread = (dmRows || []).some((m) => {
+            if (!m.friendship_id) return false;
+            const lastRead =
+              typeof window !== "undefined"
+                ? localStorage.getItem(`dm_last_read_${m.friendship_id}`)
+                : null;
+            return !lastRead || new Date(m.created_at) > new Date(lastRead);
+          });
+          setHasSocialBadge(unread);
+        } else {
+          setHasSocialBadge(false);
+        }
+      } catch {
+        setHasSocialBadge(false);
+      }
     }
 
     loadUserProfile();
@@ -71,7 +117,12 @@ export default function Navbar() {
     pathname?.startsWith("/today") ||
     pathname?.startsWith("/plans");
   const isReaderActive = pathname?.startsWith("/reader") ?? false;
-  const isCirclesActive = pathname?.startsWith("/circle") ?? false;
+  const isSocialActive =
+    pathname?.startsWith("/social") ||
+    pathname?.startsWith("/circle") ||
+    pathname?.startsWith("/members") ||
+    pathname?.startsWith("/dm") ||
+    false;
   const isJourneyActive = pathname?.startsWith("/journey") ?? false;
 
   return (
@@ -225,33 +276,36 @@ export default function Navbar() {
           </Link>
 
           <Link
-            href="/circle"
-            className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition-colors ${
-              isCirclesActive
+            href="/social"
+            className={`relative flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition-colors ${
+              isSocialActive
                 ? "text-[#4A6B5D]"
                 : "text-[#6B7280] hover:text-[#1F2937]"
             }`}
           >
             <div
-              className={
-                isCirclesActive ? "bg-[#EBF1EE] p-1.5 rounded-xl" : "p-1.5"
-              }
+              className={`relative ${
+                isSocialActive ? "bg-[#EBF1EE] p-1.5 rounded-xl" : "p-1.5"
+              }`}
             >
               <svg
                 className="w-5 h-5"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="1.9"
+                strokeWidth="1.8"
               >
-                <path
-                  d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"
-                  strokeLinejoin="round"
-                />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
+                <circle cx="17" cy="9" r="3" />
+                <path d="M21 21v-1.5a3 3 0 0 0-2.5-2.96" />
               </svg>
+              {hasSocialBadge && (
+                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#4A6B5D] ring-2 ring-[#FAF9F6] dark:ring-[#141413]" />
+              )}
             </div>
             <span className="text-[10.5px] font-medium tracking-tight">
-              Circles
+              Social
             </span>
           </Link>
 

@@ -21,7 +21,7 @@ export function arrayBufferToBase64(buffer: ArrayBuffer | null): string {
 }
 
 export function triggerRingPush(params: {
-  circleId: string;
+  circleId?: string | null;
   recipientId: string;
   message?: string;
 }) {

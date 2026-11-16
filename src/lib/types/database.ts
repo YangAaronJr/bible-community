@@ -14,18 +14,45 @@ export type Database = {
           id: string;
           display_name: string;
           avatar_url: string | null;
+          friend_code: string | null;
           created_at: string;
         };
         Insert: {
           id: string;
           display_name: string;
           avatar_url?: string | null;
+          friend_code?: string | null;
           created_at?: string;
         };
         Update: {
           id?: string;
           display_name?: string;
           avatar_url?: string | null;
+          friend_code?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      friendships: {
+        Row: {
+          id: string;
+          requester_id: string;
+          addressee_id: string;
+          status: "pending" | "accepted";
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          requester_id: string;
+          addressee_id: string;
+          status?: "pending" | "accepted";
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          requester_id?: string;
+          addressee_id?: string;
+          status?: "pending" | "accepted";
           created_at?: string;
         };
         Relationships: [];
@@ -114,35 +141,41 @@ export type Database = {
       verse_notes: {
         Row: {
           id: string;
-          circle_id: string;
+          circle_id: string | null;
           user_id: string;
           book: string;
           chapter: number;
           verse_start: number;
           verse_end: number;
           content: string;
+          visibility: "private" | "friends" | "circles";
+          target_circle_ids: string[];
           created_at: string;
         };
         Insert: {
           id?: string;
-          circle_id: string;
+          circle_id?: string | null;
           user_id: string;
           book: string;
           chapter: number;
           verse_start: number;
           verse_end: number;
           content: string;
+          visibility?: "private" | "friends" | "circles";
+          target_circle_ids?: string[];
           created_at?: string;
         };
         Update: {
           id?: string;
-          circle_id?: string;
+          circle_id?: string | null;
           user_id?: string;
           book?: string;
           chapter?: number;
           verse_start?: number;
           verse_end?: number;
           content?: string;
+          visibility?: "private" | "friends" | "circles";
+          target_circle_ids?: string[];
           created_at?: string;
         };
         Relationships: [];
@@ -150,7 +183,8 @@ export type Database = {
       messages: {
         Row: {
           id: string;
-          circle_id: string;
+          circle_id: string | null;
+          friendship_id: string | null;
           sender_id: string;
           recipient_id: string | null;
           parent_id: string | null;
@@ -161,7 +195,8 @@ export type Database = {
         };
         Insert: {
           id?: string;
-          circle_id: string;
+          circle_id?: string | null;
+          friendship_id?: string | null;
           sender_id: string;
           recipient_id?: string | null;
           parent_id?: string | null;
@@ -172,7 +207,8 @@ export type Database = {
         };
         Update: {
           id?: string;
-          circle_id?: string;
+          circle_id?: string | null;
+          friendship_id?: string | null;
           sender_id?: string;
           recipient_id?: string | null;
           parent_id?: string | null;
@@ -186,7 +222,7 @@ export type Database = {
       rings: {
         Row: {
           id: string;
-          circle_id: string;
+          circle_id: string | null;
           sender_id: string;
           recipient_id: string;
           message: string;
@@ -194,7 +230,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
-          circle_id: string;
+          circle_id?: string | null;
           sender_id: string;
           recipient_id: string;
           message?: string;
@@ -202,7 +238,7 @@ export type Database = {
         };
         Update: {
           id?: string;
-          circle_id?: string;
+          circle_id?: string | null;
           sender_id?: string;
           recipient_id?: string;
           message?: string;
@@ -351,12 +387,27 @@ export type Database = {
         Args: { target_circle_id: string };
         Returns: boolean;
       };
+      are_friends: {
+        Args: { target_user_id: string };
+        Returns: boolean;
+      };
+      send_friend_request_by_code: {
+        Args: { code: string };
+        Returns: {
+          friendship_id: string;
+          target_user_id: string;
+          display_name: string;
+          status: "pending" | "accepted";
+          direction: "outgoing" | "incoming";
+          already_exists: boolean;
+        };
+      };
       join_circle_by_code: {
         Args: { code: string };
         Returns: { circle_id: string; name: string; already_member?: boolean };
       };
       get_ring_push_subscriptions: {
-        Args: { p_circle_id: string; p_recipient_id: string };
+        Args: { p_circle_id: string | null; p_recipient_id: string };
         Returns: { endpoint: string; p256dh: string; auth: string }[];
       };
     };

@@ -196,17 +196,11 @@ function ReaderContent() {
       physical: Boolean(prog?.read_in_physical_bible),
     });
 
-    if (!activeCircleId) {
-      setNotes([]);
-      return;
-    }
-
     const { data: rawNotes } = await supabase
       .from("verse_notes")
       .select(
-        "id, circle_id, user_id, book, chapter, verse_start, verse_end, content, created_at"
+        "id, circle_id, user_id, book, chapter, verse_start, verse_end, content, visibility, target_circle_ids, created_at"
       )
-      .eq("circle_id", activeCircleId)
       .eq("book", book)
       .eq("chapter", chapter)
       .order("created_at", { ascending: true });
@@ -229,10 +223,17 @@ function ReaderContent() {
     setNotes(
       rawNotes.map((n) => ({
         ...n,
+        visibility:
+          n.visibility === "friends" || n.visibility === "circles"
+            ? n.visibility
+            : "private",
+        target_circle_ids: Array.isArray(n.target_circle_ids)
+          ? n.target_circle_ids
+          : [],
         author_name: nameMap.get(n.user_id) || "Fellow Reader",
       }))
     );
-  }, [userId, activeCircleId, book, chapter]);
+  }, [userId, book, chapter]);
 
   useEffect(() => {
     loadChapterMetadata();
@@ -308,9 +309,6 @@ function ReaderContent() {
     }
   }
 
-  const activeCircleName =
-    circles.find((c) => c.id === activeCircleId)?.name || null;
-
   return (
     <main className="flex-1 max-w-xl w-full mx-auto px-4 pt-4 pb-36 space-y-5">
       {/* Centered Compact Top Navigation Bar & Translation Selector */}
@@ -384,7 +382,7 @@ function ReaderContent() {
           {book} {chapter}
         </h1>
         <p className="text-[11px] text-[#6B7280]">
-          {translationName} · Tap any verse for Circle reflections
+          {translationName} · Tap any verse to reflect or share
         </p>
       </div>
 
@@ -494,8 +492,8 @@ function ReaderContent() {
           verse={selectedVerse.verse}
           maxVerse={verses.length}
           verseText={selectedVerse.text}
-          circleId={activeCircleId}
-          circleName={activeCircleName}
+          circles={circles}
+          activeCircleId={activeCircleId}
           currentUserId={userId}
           notes={notes}
           onClose={() => setSelectedVerse(null)}
