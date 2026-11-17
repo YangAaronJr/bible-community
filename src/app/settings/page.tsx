@@ -435,7 +435,7 @@ export default function SettingsPage() {
                 </div>
                 <p className="text-xs text-[#6B7280] mt-0.5">
                   {pushSupported
-                    ? "Receive a gentle lock-screen reminder when a Circle friend sends a Ring, even when the app is closed."
+                    ? "Receive a gentle lock-screen reminder when a friend or Circle member sends a Ring, even when the app is closed."
                     : "Web Push notifications require a supported mobile or desktop browser."}
                 </p>
               </div>

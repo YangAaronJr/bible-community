@@ -25,10 +25,11 @@ import type {
 import CircleDocsView from "@/components/circle/CircleDocsView";
 import CircleFeed from "@/components/circle/CircleFeed";
 import CirclePrayerSection from "@/components/circle/CirclePrayerSection";
+import CircleSettingsView from "@/components/circle/CircleSettingsView";
 
 const RING_HALO_MS = 15 * 60 * 1000;
 
-type CircleSubView = "charlie" | "chat" | "prayer" | "docs";
+type CircleSubView = "charlie" | "chat" | "prayer" | "docs" | "settings";
 
 function renderAvatar(
   name: string,
@@ -490,14 +491,18 @@ export default function CircleWorkspace({
 
               <div className="border-t border-[#E6E1D6] my-1" />
 
-              <Link
-                href={`/circles/${activeCircle.id}/settings`}
-                onClick={() => setMenuOpen(false)}
-                className="w-full text-left px-3 py-2.5 rounded-xl flex items-center gap-2.5 text-[#1F2937] hover:bg-[#F4F1EA] transition-colors"
+              <button
+                type="button"
+                onClick={() => openSubView("settings")}
+                className={`w-full text-left px-3 py-2.5 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer ${
+                  subView === "settings"
+                    ? "bg-[#EBF1EE] text-[#4A6B5D] font-semibold"
+                    : "text-[#1F2937] hover:bg-[#F4F1EA]"
+                }`}
               >
                 <Settings className="w-4 h-4 shrink-0 text-[#4A6B5D]" />
                 <span>Circle Settings</span>
-              </Link>
+              </button>
             </nav>
           </>
         )}
@@ -525,6 +530,12 @@ export default function CircleWorkspace({
           members={members}
           currentUserId={userId}
           onBack={() => openSubView("charlie")}
+        />
+      ) : subView === "settings" ? (
+        <CircleSettingsView
+          circleId={activeCircle.id}
+          onBack={() => openSubView("charlie")}
+          onCircleUpdated={loadCircleRoom}
         />
       ) : (
         /* Spacious Avatar-First "Charlie" Constellation Canvas */

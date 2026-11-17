@@ -175,7 +175,7 @@ export default function Navbar() {
             {isAuthenticated ? (
               <Link
                 href="/settings"
-                title="Account & Circle Settings"
+                title="Personal Settings"
                 className="flex items-center gap-2 pl-1.5 pr-3 py-1 rounded-full bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] transition-colors group"
               >
                 <span className="w-7 h-7 rounded-full overflow-hidden ring-2 ring-[#E6E1D6] group-hover:ring-[#4A6B5D] bg-[#DDE6E1] text-[#4A6B5D] flex items-center justify-center text-[11px] font-semibold shrink-0 transition-all">

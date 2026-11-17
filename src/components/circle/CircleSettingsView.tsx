@@ -25,8 +25,12 @@ interface CircleSettingsData {
 
 export default function CircleSettingsView({
   circleId,
+  onBack,
+  onCircleUpdated,
 }: {
   circleId: string;
+  onBack?: () => void;
+  onCircleUpdated?: () => void;
 }) {
   const [userId, setUserId] = useState<string | null>(null);
   const [circle, setCircle] = useState<CircleSettingsData | null>(null);
@@ -138,6 +142,7 @@ export default function CircleSettingsView({
       setAvatarUrl(publicUrl);
       setCircle((prev) => (prev ? { ...prev, avatar_url: publicUrl } : prev));
       setFeedback({ type: "success", text: "Circle photo updated." });
+      onCircleUpdated?.();
     } catch (err: unknown) {
       setFeedback({
         type: "error",
@@ -170,6 +175,7 @@ export default function CircleSettingsView({
     } else {
       setCircle((prev) => (prev ? { ...prev, name: trimmed } : prev));
       setFeedback({ type: "success", text: "Circle name saved." });
+      onCircleUpdated?.();
     }
   }
 
@@ -205,6 +211,7 @@ export default function CircleSettingsView({
         ? "Shared reading plan updated."
         : "Shared reading plan cleared.",
     });
+    onCircleUpdated?.();
   }
 
   async function handleSyncMyPlan() {
@@ -262,11 +269,11 @@ export default function CircleSettingsView({
           You may not be a member of this circle.
         </p>
         <Link
-          href="/circle"
+          href="/social"
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] dark:bg-[#63826A] dark:hover:bg-[#7C9A82] text-white text-xs font-medium transition-colors"
         >
           <ChevronLeft className="w-3.5 h-3.5" />
-          <span>Back to Circles</span>
+          <span>Back to Social</span>
         </Link>
       </div>
     );
@@ -277,13 +284,24 @@ export default function CircleSettingsView({
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
-          <Link
-            href={`/circles/${circle.id}`}
-            aria-label="Back to Circle"
-            className="w-9 h-9 rounded-full bg-[#F4F1EA] border border-[#E6E1D6] flex items-center justify-center text-[#1F2937] hover:bg-[#EAE5DA] transition-colors shrink-0"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </Link>
+          {onBack ? (
+            <button
+              type="button"
+              onClick={onBack}
+              aria-label="Back to Circle"
+              className="w-9 h-9 rounded-full bg-[#F4F1EA] border border-[#E6E1D6] flex items-center justify-center text-[#1F2937] hover:bg-[#EAE5DA] transition-colors shrink-0 cursor-pointer"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          ) : (
+            <Link
+              href={`/circles/${circle.id}`}
+              aria-label="Back to Circle"
+              className="w-9 h-9 rounded-full bg-[#F4F1EA] border border-[#E6E1D6] flex items-center justify-center text-[#1F2937] hover:bg-[#EAE5DA] transition-colors shrink-0"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Link>
+          )}
           <h1 className="font-editorial text-[26px] leading-none font-medium text-[#1F2937] tracking-tight truncate">
             Circle Settings
           </h1>
