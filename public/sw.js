@@ -10,7 +10,7 @@ self.addEventListener("push", (event) => {
   let payload = {
     title: "Selah · Gentle Ring",
     body: "Someone in your Circle is praying for your time in the Word today.",
-    url: "/circle",
+    url: "/social",
     tag: "selah-ring",
   };
 
@@ -32,7 +32,7 @@ self.addEventListener("push", (event) => {
       body: payload.body,
       tag: payload.tag || "selah-ring",
       renotify: true,
-      data: { url: payload.url || "/circle" },
+      data: { url: payload.url || "/social" },
     })
   );
 });
@@ -40,7 +40,7 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const targetUrl =
-    (event.notification.data && event.notification.data.url) || "/circle";
+    (event.notification.data && event.notification.data.url) || "/social";
 
   event.waitUntil(
     self.clients

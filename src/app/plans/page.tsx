@@ -54,7 +54,7 @@ export default function PlansPage() {
   const [enableEvening, setEnableEvening] = useState(true);
   const [eveningTrack, setEveningTrack] = useState("NT");
   const [eveningCount, setEveningCount] = useState(1);
-  const [restDays, setRestDays] = useState<number[]>([0]);
+  const [restDays, setRestDays] = useState<number[]>([]);
   const [savingCustom, setSavingCustom] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -105,7 +105,7 @@ export default function PlansPage() {
       (schedRows || []).map((s) => ({
         id: s.id,
         title: s.title,
-        rest_days: s.rest_days || [0],
+        rest_days: s.rest_days ?? [],
         schedule_items: Array.isArray(s.schedule_items)
           ? (s.schedule_items as unknown as CustomScheduleSlot[])
           : [],

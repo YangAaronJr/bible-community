@@ -733,17 +733,17 @@ export default function SocialHub() {
                   </button>
                 </div>
 
-                {/* Send request by code or display name */}
+                {/* Send request strictly by friend code */}
                 <form onSubmit={handleSendFriendRequest} className="space-y-2.5">
                   <label className="block text-xs font-medium text-[#1F2937]">
-                    Enter Friend Code or Display Name
+                    Enter Friend Code
                   </label>
                   <input
                     type="text"
                     required
                     value={friendCodeInput}
                     onChange={(e) => setFriendCodeInput(e.target.value)}
-                    placeholder="e.g. A1B2C3 or Hannah"
+                    placeholder="e.g. A1B2C3"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-[#E6E1D6] bg-[#FAF9F6] text-xs text-[#1F2937] focus:outline-none focus:border-[#4A6B5D]"
                   />
                   <button

@@ -109,7 +109,7 @@ export default function HomePage() {
     if (activeSched) {
       setActiveCustomSchedule({
         title: activeSched.title,
-        rest_days: activeSched.rest_days || [0],
+        rest_days: activeSched.rest_days ?? [],
         schedule_items: Array.isArray(activeSched.schedule_items)
           ? (activeSched.schedule_items as unknown as CustomScheduleSlot[])
           : [],
@@ -378,10 +378,7 @@ export default function HomePage() {
 
       <main className="flex-1 max-w-xl w-full mx-auto px-5 py-6 space-y-6">
         {/* Top Row: Subtle Plan Pill */}
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]">
-            Daily Snapshot
-          </span>
+        <div className="flex items-center justify-end">
           <Link
             href="/plans"
             className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] text-xs font-medium text-[#1F2937] transition-colors"
@@ -621,9 +618,6 @@ export default function HomePage() {
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]">
               Updates
-            </span>
-            <span className="text-[11px] text-[#6B7280]">
-              Quiet &amp; unhurried
             </span>
           </div>
 

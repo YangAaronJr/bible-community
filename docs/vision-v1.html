@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>1Fellowship — Product Vision v1.0 Interactive Prototype</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Newsreader (Editorial Scripture & Reflections) & Inter (Calm UI) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            serif: ['Newsreader', 'Georgia', 'serif'],
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    :root {
+      --bg-studio: #E7E4DC;
+      --bg-paper: #FAF9F6;
+      --bg-card: #FFFFFF;
+      --bg-subtle: #F2EFE7;
+      --border-hairline: #E5E0D5;
+      --text-ink: #1F2937;
+      --text-muted: #6B7280;
+      --accent-sage: #4A6B5D;
+      --accent-sage-soft: #EBF1EE;
+      --accent-amber: #B47B44;
+      --accent-amber-soft: #FBF5EE;
+    }
+
+    html.dark {
+      --bg-studio: #0B0B0A;
+      --bg-paper: #141413;
+      --bg-card: #1E1E1C;
+      --bg-subtle: #252522;
+      --border-hairline: #2E2E2A;
+      --text-ink: #F3F2EE;
+      --text-muted: #9CA3AF;
+      --accent-sage: #7C9A82;
+      --accent-sage-soft: rgba(124, 154, 130, 0.16);
+      --accent-amber: #D49A6A;
+      --accent-amber-soft: rgba(212, 154, 106, 0.16);
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg-studio);
+      color: var(--text-ink);
+      -webkit-font-smoothing: antialiased;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    .font-editorial {
+      font-family: 'Newsreader', Georgia, serif;
+    }
+
+    .theme-paper {
+      background-color: var(--bg-paper);
+      color: var(--text-ink);
+    }
+
+    .theme-card {
+      background-color: var(--bg-card);
+      border-color: var(--border-hairline);
+    }
+
+    .theme-subtle {
+      background-color: var(--bg-subtle);
+      border-color: var(--border-hairline);
+    }
+
+    .theme-border {
+      border-color: var(--border-hairline);
+    }
+
+    .theme-muted {
+      color: var(--text-muted);
+    }
+
+    .theme-sage-bg {
+      background-color: var(--accent-sage);
+      color: #FFFFFF;
+    }
+    html.dark .theme-sage-bg {
+      color: #141413;
+      font-weight: 600;
+    }
+
+    .theme-sage-pill {
+      background-color: var(--accent-sage-soft);
+      color: var(--accent-sage);
+    }
+
+    .theme-amber-pill {
+      background-color: var(--accent-amber-soft);
+      color: var(--accent-amber);
+    }
+
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    .thin-scroll::-webkit-scrollbar {
+      width: 4px;
+    }
+    .thin-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .thin-scroll::-webkit-scrollbar-thumb {
+      background: rgba(124, 154, 130, 0.35);
+      border-radius: 9999px;
+    }
+
+    /* 390 x 844 iPhone Frame */
+    .phone-frame {
+      width: 390px;
+      height: 844px;
+      background-color: var(--bg-paper);
+      color: var(--text-ink);
+      border-radius: 44px;
+      box-shadow:
+        0 28px 65px -12px rgba(0, 0, 0, 0.24),
+        0 0 0 9px #252523,
+        0 0 0 11px rgba(156, 163, 175, 0.25);
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    @media (max-width: 430px) {
+      .phone-frame {
+        width: 100vw;
+        height: 100dvh;
+        border-radius: 0;
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between">
+
+  <!-- Studio Control Bar -->
+  <header class="w-full sticky top-0 z-50 backdrop-blur-md bg-[#E7E4DC]/90 dark:bg-[#0B0B0A]/90 border-b border-[#D5D0C5] dark:border-[#262623] px-4 py-2.5">
+    <div class="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-xl theme-sage-bg flex items-center justify-center font-editorial font-semibold text-base">
+          1F
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold tracking-tight">1Fellowship · Product Vision v1.0 Spec</span>
+            <span class="hidden sm:inline-block px-2 py-0.5 rounded-full text-[10px] font-medium theme-sage-pill">
+              Interactive Prototype
+            </span>
+          </div>
+          <p class="text-[11px] theme-muted hidden md:block">
+            Explore Personal Home, Reader destination sharing, Social wrapping grids, Member Profile Pages, and Circle rooms
+          </p>
+        </div>
+      </div>
+
+      <!-- Quick Jump & Theme Switcher -->
+      <div class="flex items-center gap-2">
+        <div class="hidden lg:flex items-center gap-1 bg-[#DCD8CE] dark:bg-[#1C1C1A] p-1 rounded-xl border border-[#C8C3B8] dark:border-[#2E2E2A] text-[11px]">
+          <button onclick="navigateRoot('home')" class="px-2 py-1 rounded-lg hover:bg-white/60 dark:hover:bg-white/10 font-medium">Home</button>
+          <button onclick="navigateRoot('reader')" class="px-2 py-1 rounded-lg hover:bg-white/60 dark:hover:bg-white/10 font-medium">Reader</button>
+          <button onclick="navigateRoot('social')" class="px-2 py-1 rounded-lg hover:bg-white/60 dark:hover:bg-white/10 font-medium">Social</button>
+          <button onclick="openCircleRoom('grace')" class="px-2 py-1 rounded-lg hover:bg-white/60 dark:hover:bg-white/10 font-medium">Circle Room</button>
+          <button onclick="navigateRoot('journey')" class="px-2 py-1 rounded-lg hover:bg-white/60 dark:hover:bg-white/10 font-medium">Journey</button>
+        </div>
+
+        <button
+          onclick="toggleTheme()"
+          class="px-3 py-1.5 rounded-xl border border-[#C8C3B8] dark:border-[#2E2E2A] bg-[#FAF9F6] dark:bg-[#1E1E1C] text-xs font-medium flex items-center gap-1.5 shadow-2xs hover:opacity-90 transition-all"
+        >
+          <span id="studio-theme-icon">☀️</span>
+          <span id="studio-theme-label">Warm Paper</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Centered 390x844 Mobile Frame -->
+  <main class="flex-1 flex items-center justify-center py-4 sm:py-6 px-0 sm:px-4">
+    <div id="app-phone" class="phone-frame">
+      <!-- Rendered dynamically by renderApp() -->
+    </div>
+  </main>
+
+  <script>
+    // =========================================================================
+    // 1. CRISP INLINE SVG AVATARS (Personal & Circle Monograms)
+    // =========================================================================
+    function getAvatarSVG(id, size = 56) {
+      const avatars = {
+        aaron: `
+          <svg width="${size}" height="${size}" viewBox="0 0 80 80" fill="none">
+            <circle cx="40" cy="40" r="40" fill="#D9E4DE"/>
+            <circle cx="40" cy="31" r="14" fill="#D8A48F"/>
+            <path d="M26 28c0-9 6-15 14-15s14 6 14 15c-3-4-8-6-14-6s-11 2-14 6z" fill="#3B322C"/>
+            <path d="M16 74c3-14 13-21 24-21s21 7 24 21" fill="#4A6B5D"/>
+            <circle cx="35.5" cy="31" r="1.5" fill="#1F2937"/>
+            <circle cx="44.5" cy="31" r="1.5" fill="#1F2937"/>
+            <path d="M37 36.5c1.8 1.5 4.2 1.5 6 0" stroke="#1F2937" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>`,
+        hannah: `
+          <svg width="${size}" height="${size}" viewBox="0 0 80 80" fill="none">
+            <circle cx="40" cy="40" r="40" fill="#EFE6DC"/>
+            <path d="M22 36c0-13 8-21 18-21s18 8 18 21v14H22V36z" fill="#6F4518"/>
+            <circle cx="40" cy="32" r="13.5" fill="#F3CBB6"/>
+            <path d="M17 74c3-13 12-20 23-20s20 7 23 20" fill="#B47B44"/>
+            <circle cx="35.5" cy="32" r="1.5" fill="#1F2937"/>
+            <circle cx="44.5" cy="32" r="1.5" fill="#1F2937"/>
+            <path d="M37 37c1.8 1.5 4.2 1.5 6 0" stroke="#1F2937" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>`,
+        daniel: `
+          <svg width="${size}" height="${size}" viewBox="0 0 80 80" fill="none">
+            <circle cx="40" cy="40" r="40" fill="#EAE0D2"/>
+            <circle cx="40" cy="32" r="14" fill="#9C6644"/>
+            <path d="M25 29c0-10 7-16 15-16s15 6 15 16c-2-5-7-8-15-8s-13 3-15 8z" fill="#231F20"/>
+            <path d="M16 74c3-14 13-21 24-21s21 7 24 21" fill="#587065"/>
+            <circle cx="35.5" cy="32" r="1.5" fill="#1F2937"/>
+            <circle cx="44.5" cy="32" r="1.5" fill="#1F2937"/>
+            <path d="M36.5 37.5c2 1.8 5 1.8 7 0" stroke="#1F2937" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>`,
+        chloe: `
+          <svg width="${size}" height="${size}" viewBox="0 0 80 80" fill="none">
+            <circle cx="40" cy="40" r="40" fill="#E4ECE7"/>
+            <path d="M23 35c0-12 7-20 17-20s17 8 17 20v16H23V35z" fill="#2D2926"/>
+            <circle cx="40" cy="32" r="13.5" fill="#F1C6B1"/>
+            <path d="M17 74c3-13 12-20 23-20s20 7 23 20" fill="#5E8172"/>
+            <circle cx="35.5" cy="32" r="1.5" fill="#1F2937"/>
+            <circle cx="44.5" cy="32" r="1.5" fill="#1F2937"/>
+            <path d="M37 37c1.8 1.5 4.2 1.5 6 0" stroke="#1F2937" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>`,
+        james: `
+          <svg width="${size}" height="${size}" viewBox="0 0 80 80" fill="none">
+            <circle cx="40" cy="40" r="40" fill="#DDE4E7"/>
+            <circle cx="40" cy="31" r="14" fill="#E2B49A"/>
+            <path d="M26 27c1-8 7-13 14-13s13 5 14 13c-4-3-9-4-14-4s-10 1-14 4z" fill="#5C534E"/>
+            <path d="M32 38c2 4 14 4 16 0" stroke="#5C534E" stroke-width="2.2" stroke-linecap="round"/>
+            <path d="M16 74c3-14 13-21 24-21s21 7 24 21" fill="#374B54"/>
+            <circle cx="35.5" cy="31" r="1.5" fill="#1F2937"/>
+            <circle cx="44.5" cy="31" r="1.5" fill="#1F2937"/>
+            <path d="M37 36.2c1.8 1.3 4.2 1.3 6 0" stroke="#1F2937" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>`,
+        ben: `
+          <svg width="${size}" height="${size}" viewBox="0 0 80 80" fill="none">
+            <circle cx="40" cy="40" r="40" fill="#E3E7E2"/>
+            <circle cx="40" cy="31" r="14" fill="#DCA98E"/>
+            <path d="M26 28c0-9 6-14 14-14s14 5 14 14c-3-4-8-5-14-5s-11 1-14 5z" fill="#6F4E37"/>
+            <path d="M16 74c3-14 13-21 24-21s21 7 24 21" fill="#7C9A82"/>
+            <circle cx="35.5" cy="31" r="1.5" fill="#1F2937"/>
+            <circle cx="44.5" cy="31" r="1.5" fill="#1F2937"/>
+            <path d="M37 36.5c1.8 1.5 4.2 1.5 6 0" stroke="#1F2937" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>`,
+      };
+      return avatars[id] || avatars.aaron;
+    }
+
+    function getCircleAvatarSVG(id, size = 56) {
+      const badges = {
+        grace: { bg: '#D9E4DE', fg: '#4A6B5D', text: 'GP' },
+        mens: { bg: '#EAE0D2', fg: '#8C5A2B', text: 'MT' },
+        sunday: { bg: '#DDE4E7', fg: '#374B54', text: 'ST' },
+      };
+      const b = badges[id] || badges.grace;
+      return `
+        <svg width="${size}" height="${size}" viewBox="0 0 80 80" fill="none">
+          <circle cx="40" cy="40" r="40" fill="${b.bg}"/>
+          <circle cx="40" cy="40" r="35" stroke="${b.fg}" stroke-opacity="0.22" stroke-width="1.5" stroke-dasharray="4 3"/>
+          <text x="40" y="46" text-anchor="middle" fill="${b.fg}" font-family="Newsreader, Georgia, serif" font-size="22" font-weight="600">${b.text}</text>
+        </svg>
+      `;
+    }
+
+    // =========================================================================
+    // 2. PRODUCT VISION v1.0 STATE REPOSITORY
+    // =========================================================================
+    const state = {
+      darkMode: false,
+      rootTab: 'home', // 'home' | 'reader' | 'social' | 'journey'
+      overlayScreen: null, // null | 'member' | 'circle-room' | 'settings' | 'add-friend'
+      activeMemberId: 'hannah',
+      activeCircleId: 'grace',
+      circleSubView: 'charlie', // 'charlie' | 'chat' | 'prayer' | 'docs' | 'settings'
+
+      // Personal Home State
+      sabbathPreview: false,
+      morningOtRead: true,
+      eveningNtRead: false,
+      physicalBibleChecked: false,
+      friendDmUnread: { hannah: true, daniel: false },
+      circleHasActivity: { grace: true, mens: false, sunday: true },
+
+      // Reader State
+      readerBook: 'John',
+      readerChapter: 1,
+      readerVersion: 'BSB',
+      readerPickerOpen: null, // null | 'book' | 'version'
+      shareDrawerOpen: false,
+      shareDraftText: '',
+      shareDestination: 'friends', // 'private' | 'friends' | 'grace' | 'mens'
+      shareToast: '',
+
+      // Social Tab & Friends
+      friendList: ['hannah', 'daniel', 'chloe'],
+      circleList: ['grace', 'mens', 'sunday'],
+      friendCodeInput: '',
+      addFriendSuccess: false,
+
+      // Member Data Store
+      members: {
+        hannah: {
+          id: 'hannah',
+          name: 'Hannah',
+          fullName: 'Hannah Brooks',
+          role: 'Mutual Friend & Circle Member',
+          isFriend: true,
+          prayer: 'Praying for peace while traveling home to visit family this weekend.',
+          reflections: [
+            { id: 'r1', when: 'Today · 8:30 AM', passage: 'John 1:14–16', text: '“And from His fullness we have all received, grace upon grace.” Restful reminder that we never outrun His generosity.' },
+            { id: 'r2', when: 'Yesterday', passage: 'Psalm 23:2', text: 'He makes me lie down in green pastures—sometimes rest is obedience, not laziness.' }
+          ]
+        },
+        daniel: {
+          id: 'daniel',
+          name: 'Daniel',
+          fullName: 'Daniel Wright',
+          role: 'Mutual Friend & Circle Member',
+          isFriend: true,
+          prayer: null,
+          reflections: [
+            { id: 'r3', when: 'Today · 7:50 AM', passage: 'John 1:4–5', text: 'The light shines in the darkness, and the darkness has not overcome it. Underlined in physical Bible.' }
+          ]
+        },
+        chloe: {
+          id: 'chloe',
+          name: 'Chloe',
+          fullName: 'Chloe Lin',
+          role: 'Mutual Friend',
+          isFriend: true,
+          prayer: 'Wisdom and calm recall during chemistry finals this week.',
+          reflections: [
+            { id: 'r4', when: '2 days ago', passage: 'Philippians 4:6–7', text: 'Handing over every anxious thought with thanksgiving before opening textbooks.' }
+          ]
+        },
+        james: {
+          id: 'james',
+          name: 'James',
+          fullName: 'James Miller',
+          role: 'Circle Leader (Not yet a 1-on-1 friend)',
+          isFriend: false, // in circle but not mutual friend
+          prayer: null,
+          reflections: [
+            { id: 'r5', when: 'Today · 8:10 AM', passage: 'Psalm 23:1–3', text: 'Notice the order: God restores our soul first, then leads us in paths of righteousness.' }
+          ]
+        },
+        ben: {
+          id: 'ben',
+          name: 'Ben',
+          fullName: 'Ben Alvarez',
+          role: 'Circle Member (Not yet a 1-on-1 friend)',
+          isFriend: false,
+          prayer: 'Starting a new job next Monday—praying for humility and quick learning.',
+          reflections: []
+        }
+      },
+
+      // Circles Data Store
+      circles: {
+        grace: {
+          id: 'grace',
+          name: 'Grace & Psalms',
+          code: '8HA99L',
+          planName: 'Morning OT & Evening NT',
+          members: ['daniel', 'chloe', 'james', 'ben', 'hannah']
+        },
+        mens: {
+          id: 'mens',
+          name: "Men's Table",
+          code: 'MEN402',
+          planName: 'Proverbs & Epistles',
+          members: ['daniel', 'james', 'ben']
+        },
+        sunday: {
+          id: 'sunday',
+          name: 'Sunday Table',
+          code: 'SUN112',
+          planName: 'Gospel of John · 21 Days',
+          members: ['hannah', 'chloe', 'james']
+        }
+      },
+
+      // Journey Mosaic
+      journeyBooks: [
+        { code: 'GEN', ch: 50, status: 'done' },
+        { code: 'EXO', ch: 40, status: 'done' },
+        { code: 'PSA', ch: 150, status: 'active', read: 23 },
+        { code: 'PRO', ch: 31, status: 'done' },
+        { code: 'ISA', ch: 66, status: 'none' },
+        { code: 'MAT', ch: 28, status: 'done' },
+        { code: 'MRK', ch: 16, status: 'done' },
+        { code: 'LUK', ch: 24, status: 'done' },
+        { code: 'JHN', ch: 21, status: 'active', read: 1 },
+      ]
+    };
+
+    // =========================================================================
+    // 3. ACTIONS & CONTROLLERS
+    // =========================================================================
+    function toggleTheme() {
+      state.darkMode = !state.darkMode;
+      const html = document.documentElement;
+      if (state.darkMode) {
+        html.classList.add('dark');
+        document.getElementById('studio-theme-icon').textContent = '🌙';
+        document.getElementById('studio-theme-label').textContent = 'Dark Charcoal';
+      } else {
+        html.classList.remove('dark');
+        document.getElementById('studio-theme-icon').textContent = '☀️';
+        document.getElementById('studio-theme-label').textContent = 'Warm Paper';
+      }
+      renderApp();
+    }
+
+    function navigateRoot(tab) {
+      state.rootTab = tab;
+      state.overlayScreen = null;
+      state.readerPickerOpen = null;
+      state.shareDrawerOpen = false;
+      renderApp();
+    }
+
+    function openMemberProfile(memberId) {
+      state.activeMemberId = memberId;
+      state.overlayScreen = 'member';
+      renderApp();
+    }
+
+    function openCircleRoom(circleId, subView = 'charlie') {
+      state.activeCircleId = circleId;
+      state.circleSubView = subView;
+      state.circleHasActivity[circleId] = false;
+      state.overlayScreen = 'circle-room';
+      renderApp();
+    }
+
+    function openPersonalSettings() {
+      state.overlayScreen = 'settings';
+      renderApp();
+    }
+
+    function openAddFriendModal() {
+      state.overlayScreen = 'add-friend';
+      state.addFriendSuccess = false;
+      state.friendCodeInput = '';
+      renderApp();
+    }
+
+    function sendFriendRequest() {
+      if (!state.friendCodeInput.trim()) return;
+      state.addFriendSuccess = true;
+      renderApp();
+      setTimeout(() => {
+        state.overlayScreen = null;
+        state.addFriendSuccess = false;
+        renderApp();
+      }, 1800);
+    }
+
+    function submitReflection() {
+      const text = state.shareDraftText.trim();
+      if (!text) return;
+      const destName =
+        state.shareDestination === 'private'
+          ? 'Private (Only Me)'
+          : state.shareDestination === 'friends'
+          ? 'All Friends'
+          : state.circles[state.shareDestination]?.name || 'Circle';
+
+      state.shareDraftText = '';
+      state.shareDrawerOpen = false;
+      state.shareToast = `Reflection saved to ${destName}`;
+      renderApp();
+
+      setTimeout(() => {
+        state.shareToast = '';
+        renderApp();
+      }, 3000);
+    }
+
+    // =========================================================================
+    // 4. CORE RENDER ENGINE
+    // =========================================================================
+    function renderStatusBar() {
+      return `
+        <div class="px-6 pt-3 pb-1 flex items-center justify-between text-[11px] font-semibold select-none shrink-0">
+          <span>9:41</span>
+          <div class="w-24 h-5 rounded-full bg-[#1F2937] dark:bg-black"></div>
+          <div class="flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 20c.83 0 1.5-.67 1.5-1.5S12.83 17 12 17s-1.5.67-1.5 1.5S11.17 20 12 20zm4.24-3.76l1.41-1.41C16.14 13.32 14.18 12.5 12 12.5s-4.14.82-5.65 2.33l1.41 1.41C8.9 15.1 10.38 14.5 12 14.5s3.1.6 4.24 1.74zm2.83-2.83l1.41-1.41C18.23 9.75 15.27 8.5 12 8.5s-6.23 1.25-8.48 3.5l1.41 1.41C6.8 11.54 9.28 10.5 12 10.5s5.2 1.04 7.07 2.91z"/></svg>
+            <div class="w-5 h-2.5 border border-current rounded-[3px] p-[1px] flex items-center">
+              <div class="w-full h-full bg-current rounded-[1px]"></div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderGlobalTopHeader() {
+      return `
+        <header class="px-5 pt-2 pb-2.5 flex items-center justify-between shrink-0">
+          <div class="flex items-center gap-2">
+            <span class="font-editorial text-xl font-semibold tracking-tight">1Fellowship</span>
+          </div>
+
+          <button
+            onclick="openPersonalSettings()"
+            class="flex items-center gap-2 pl-2.5 pr-1.5 py-1 rounded-full theme-subtle border hover:opacity-90 transition-all"
+            title="Personal Settings"
+          >
+            <span class="text-xs font-medium">Aaron</span>
+            <div class="rounded-full overflow-hidden">
+              ${getAvatarSVG('aaron', 26)}
+            </div>
+          </button>
+        </header>
+      `;
+    }
+
+    function renderGlobalBottomNav() {
+      const tabs = [
+        { id: 'home', label: 'Home', icon: `<path d="M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-9.5z" stroke-linejoin="round"/>` },
+        { id: 'reader', label: 'Reader', icon: `<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke-linecap="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>` },
+        { id: 'social', label: 'Social', hasBadge: Object.values(state.friendDmUnread).some(Boolean), icon: `<circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><circle cx="17" cy="9" r="3"/><path d="M21 21v-1.5a3 3 0 0 0-2.5-2.96"/>` },
+        { id: 'journey', label: 'Journey', icon: `<rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>` }
+      ];
+
+      return `
+        <nav class="theme-paper border-t theme-border px-3 pt-1.5 pb-5 flex items-center justify-around shrink-0">
+          ${tabs.map(t => {
+            const active = state.rootTab === t.id && !state.overlayScreen;
+            return `
+              <button
+                onclick="navigateRoot('${t.id}')"
+                class="relative flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-all ${active ? 'font-semibold' : 'theme-muted hover:opacity-90'}"
+              >
+                <div class="relative ${active ? 'theme-sage-pill px-3 py-1 rounded-xl' : 'p-1'}">
+                  <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">${t.icon}</svg>
+                  ${t.hasBadge ? `<span class="absolute top-0.5 right-1 w-2 h-2 rounded-full bg-[#4A6B5D] dark:bg-[#7C9A82]"></span>` : ''}
+                </div>
+                <span class="text-[10.5px] tracking-tight">${t.label}</span>
+              </button>
+            `;
+          }).join('')}
+        </nav>
+      `;
+    }
+
+    function renderApp() {
+      const frame = document.getElementById('app-phone');
+
+      // 1. MODAL / OVERLAY: Member Profile Page (/members/[id])
+      if (state.overlayScreen === 'member') {
+        const m = state.members[state.activeMemberId];
+        frame.innerHTML = `
+          ${renderStatusBar()}
+          <div class="px-5 py-2.5 border-b theme-border flex items-center justify-between shrink-0">
+            <button onclick="state.overlayScreen = null; renderApp();" class="text-xs font-semibold text-[#4A6B5D] dark:text-[#7C9A82]">← Back</button>
+            <span class="font-editorial text-base font-semibold">Member Profile</span>
+            <div class="w-8"></div>
+          </div>
+
+          <div class="flex-1 overflow-y-auto thin-scroll px-6 py-5 space-y-5">
+            <!-- Header & Action Bar -->
+            <div class="flex items-center gap-4">
+              <div class="shrink-0 p-0.5 rounded-full ring-2 ring-[#4A6B5D] dark:ring-[#7C9A82]">
+                ${getAvatarSVG(m.id, 68)}
+              </div>
+              <div class="min-w-0">
+                <h2 class="font-editorial text-2xl font-semibold truncate">${m.name}</h2>
+                <p class="text-xs theme-muted truncate">${m.role}</p>
+              </div>
+            </div>
+
+            <!-- Primary Actions -->
+            <div class="flex items-center gap-2 pt-1">
+              ${m.isFriend ? `
+                <button onclick="alert('Opening 1-on-1 Direct Message with ${m.name}')" class="flex-1 py-2.5 rounded-xl theme-sage-bg text-xs font-semibold shadow-2xs">Message (1-on-1 DM)</button>
+              ` : `
+                <button onclick="alert('Friend request sent to ${m.name}!')" class="flex-1 py-2.5 rounded-xl theme-subtle border text-xs font-semibold">+ Add Friend</button>
+              `}
+              <button onclick="alert('Quiet Ring sent to ${m.name}!')" class="px-4 py-2.5 rounded-xl theme-amber-pill text-xs font-semibold">🔔 Ring</button>
+            </div>
+
+            <!-- Active Prayer Request -->
+            ${m.prayer ? `
+              <div class="theme-subtle border rounded-2xl p-4 space-y-2.5">
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-[#B47B44]">Active Prayer Request</span>
+                <p class="text-xs leading-relaxed">${m.prayer}</p>
+                <button onclick="alert('Marked as praying!')" class="px-3 py-1.5 rounded-xl theme-sage-bg text-xs font-semibold">🙏 Praying for you</button>
+              </div>
+            ` : ''}
+
+            <!-- 3-Day Reflections Feed -->
+            <div class="space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] font-semibold uppercase tracking-wider theme-muted">Reflections (Past 3 Days)</span>
+                <span class="text-[10px] theme-muted">Fresh & unhurried</span>
+              </div>
+
+              ${m.reflections.length > 0 ? m.reflections.map(r => `
+                <div class="theme-card border rounded-2xl p-4 space-y-2 shadow-2xs">
+                  <div class="flex items-center justify-between text-[11px]">
+                    <span class="theme-sage-pill px-2.5 py-0.5 rounded-lg font-medium">${r.passage}</span>
+                    <span class="theme-muted">${r.when}</span>
+                  </div>
+                  <p class="font-editorial text-base leading-relaxed">${r.text}</p>
+                </div>
+              `).join('') : `
+                <div class="theme-subtle border rounded-2xl p-6 text-center">
+                  <p class="text-xs theme-muted italic">No public reflections shared in the past 3 days.</p>
+                </div>
+              `}
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      // 2. MODAL / OVERLAY: Per-Circle Room (/circles/[id])
+      if (state.overlayScreen === 'circle-room') {
+        const c = state.circles[state.activeCircleId];
+        frame.innerHTML = `
+          ${renderStatusBar()}
+          <!-- Circle Header with Side Dropdown Trigger -->
+          <div class="px-5 py-3 border-b theme-border flex items-center justify-between relative shrink-0">
+            <button onclick="state.overlayScreen = null; renderApp();" class="text-xs font-semibold text-[#4A6B5D] dark:text-[#7C9A82]">← Circles</button>
+            <span class="font-editorial text-base font-semibold">${c.name}</span>
+            <button onclick="state.circleDropdownOpen = !state.circleDropdownOpen; renderApp();" class="w-8 h-8 rounded-xl theme-subtle border flex items-center justify-center text-xs">☰</button>
+
+            <!-- Side Dropdown Navigation Menu -->
+            ${state.circleDropdownOpen ? `
+              <div class="absolute right-4 top-12 z-50 w-52 theme-card border rounded-2xl shadow-2xl p-2 space-y-1 text-xs">
+                <button onclick="state.circleSubView='charlie'; state.circleDropdownOpen=false; renderApp();" class="w-full text-left px-3 py-2 rounded-xl hover:bg-black/5 flex items-center justify-between"><span>👤 Members (Charlie)</span></button>
+                <button onclick="state.circleSubView='chat'; state.circleDropdownOpen=false; renderApp();" class="w-full text-left px-3 py-2 rounded-xl hover:bg-black/5 flex items-center justify-between"><span>💬 Group Chat</span><span class="w-2 h-2 rounded-full theme-sage-bg"></span></button>
+                <button onclick="state.circleSubView='prayer'; state.circleDropdownOpen=false; renderApp();" class="w-full text-left px-3 py-2 rounded-xl hover:bg-black/5"><span>🙏 Prayer Requests</span></button>
+                <button onclick="state.circleSubView='docs'; state.circleDropdownOpen=false; renderApp();" class="w-full text-left px-3 py-2 rounded-xl hover:bg-black/5"><span>📄 Shared Docs</span></button>
+                <div class="border-t theme-border pt-1"></div>
+                <button onclick="state.circleSubView='settings'; state.circleDropdownOpen=false; renderApp();" class="w-full text-left px-3 py-2 rounded-xl hover:bg-black/5"><span>⚙️ Circle Settings</span></button>
+              </div>
+            ` : ''}
+          </div>
+
+          <div class="flex-1 overflow-y-auto thin-scroll p-5 space-y-4">
+            ${
+              state.circleSubView === 'charlie'
+                ? `
+                <div class="space-y-4 text-center">
+                  <p class="text-[10px] font-semibold uppercase tracking-wider theme-muted">Avatar-First Charlie Canvas</p>
+                  <div class="grid grid-cols-2 gap-3 pt-2">
+                    ${c.members.map(mid => {
+                      const mem = state.members[mid] || { name: 'Member', role: 'Circle Peer' };
+                      return `
+                        <button onclick="openMember('${mid}')" class="theme-card border rounded-2xl p-4 flex flex-col items-center gap-2 hover:border-[#4A6B5D] transition-all group">
+                          <div class="p-1 rounded-full ring-1 theme-border group-hover:scale-105 transition-transform">
+                            ${getAvatarSVG(mid, 56)}
+                          </div>
+                          <span class="text-xs font-semibold">${mem.name}</span>
+                          <span class="text-[10px] theme-muted">${mem.isFriend ? 'Friend' : 'Member'}</span>
+                        </button>
+                      `;
+                    }).join('')}
+                  </div>
+                  <p class="text-[11px] theme-muted pt-2">Tap any member to open their profile & view recent reflections.</p>
+                </div>
+              `
+                : state.circleSubView === 'chat'
+                ? `
+                <div class="space-y-3 text-xs">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-semibold uppercase tracking-wider theme-muted">Group Chat Stream</span>
+                    <span class="theme-sage-pill px-2 py-0.5 rounded font-medium">Live</span>
+                  </div>
+                  <div class="theme-card border rounded-2xl p-3.5 space-y-1.5">
+                    <div class="flex items-center justify-between font-semibold"><span>James Miller</span><span class="theme-muted font-normal text-[10px]">8:12 AM</span></div>
+                    <p class="font-editorial text-base">“He makes me lie down in green pastures.” So grateful for Sabbath rest today.</p>
+                  </div>
+                  <div class="theme-subtle border rounded-2xl p-3.5 space-y-1.5">
+                    <div class="flex items-center justify-between font-semibold"><span>Daniel Wright</span><span class="theme-muted font-normal text-[10px]">9:05 AM</span></div>
+                    <p class="font-editorial text-base">Checked out John 1 in the BSB translation—such a striking opening contrast.</p>
+                  </div>
+                </div>
+              `
+                : state.circleSubView === 'prayer'
+                ? `
+                <div class="space-y-3 text-xs">
+                  <span class="text-[10px] font-semibold uppercase tracking-wider theme-muted">Circle Prayer Requests</span>
+                  <div class="theme-card border rounded-2xl p-4 space-y-2.5">
+                    <div class="flex items-center justify-between font-semibold"><span>Ben Alvarez</span><span class="text-[10px] theme-muted">Active</span></div>
+                    <p class="text-xs leading-relaxed">Starting a new job next Monday—praying for humility and quick learning.</p>
+                    <button onclick="alert('Marked as praying!')" class="px-3 py-1.5 rounded-xl theme-sage-bg text-xs font-semibold">🙏 Praying for you</button>
+                  </div>
+                </div>
+              `
+                : state.circleSubView === 'docs'
+                ? `
+                <div class="space-y-3 text-xs">
+                  <span class="text-[10px] font-semibold uppercase tracking-wider theme-muted">Shared Circle Docs (Collaboration)</span>
+                  <div class="theme-card border rounded-2xl p-4 space-y-2">
+                    <p class="font-semibold text-sm">Sunday Sermon: Abiding in the Vine</p>
+                    <p class="text-[11px] theme-muted">Edited by James · 2 hours ago</p>
+                    <p class="font-editorial text-sm leading-relaxed pt-1">John 15:1–8 — Branches do not strive to produce fruit; they remain connected to the Vine.</p>
+                  </div>
+                </div>
+              `
+                : `
+                <div class="space-y-4 text-xs">
+                  <span class="text-[10px] font-semibold uppercase tracking-wider theme-muted">Circle Settings</span>
+                  <div class="theme-card border rounded-2xl p-4 space-y-3">
+                    <div>
+                      <label class="theme-muted block mb-1">Circle Name</label>
+                      <input type="text" value="${c.name}" class="w-full theme-subtle border rounded-xl px-3 py-2 outline-none font-medium text-xs" />
+                    </div>
+                    <div class="flex items-center justify-between pt-1">
+                      <span class="theme-muted">Invite Code:</span>
+                      <span class="font-mono font-bold px-2.5 py-1 theme-subtle rounded-lg">${c.code}</span>
+                    </div>
+                  </div>
+                </div>
+              `
+            }
+          </div>
+        `;
+        return;
+      }
+
+      // 3. MODAL / OVERLAY: Personal Settings (/settings)
+      if (state.overlayScreen === 'settings') {
+        frame.innerHTML = `
+          ${renderStatusBar()}
+          <div class="px-5 py-2.5 border-b theme-border flex items-center justify-between shrink-0">
+            <button onclick="state.overlayScreen = null; renderApp();" class="text-xs font-semibold text-[#4A6B5D] dark:text-[#7C9A82]">← Back</button>
+            <span class="font-editorial text-base font-semibold">Settings</span>
+            <div class="w-8"></div>
+          </div>
+          <div class="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
+            <div class="theme-card border rounded-2xl p-4 space-y-3">
+              <span class="text-[10px] font-semibold uppercase tracking-wider theme-muted">Profile</span>
+              <div class="flex items-center gap-3">
+                ${getAvatarSVG('aaron', 48)}
+                <div>
+                  <p class="text-sm font-semibold">Aaron</p>
+                  <p class="text-[11px] theme-muted">aaron@fellowship.app</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="theme-card border rounded-2xl p-4 space-y-3">
+              <span class="text-[10px] font-semibold uppercase tracking-wider theme-muted">Preferences</span>
+              <div class="flex items-center justify-between py-1">
+                <span>Dark Mode Theme</span>
+                <button onclick="toggleDarkMode()" class="px-3 py-1.5 rounded-xl theme-subtle border font-medium">Toggle</button>
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      // 4. MODAL / OVERLAY: Add Friend Modal
+      if (state.overlayScreen === 'add-friend') {
+        frame.innerHTML = `
+          ${renderStatusBar()}
+          <div class="px-5 py-2.5 border-b theme-border flex items-center justify-between shrink-0">
+            <button onclick="state.overlayScreen = null; renderApp();" class="text-xs font-semibold text-[#4A6B5D] dark:text-[#7C9A82]">← Back</button>
+            <span class="font-editorial text-base font-semibold">Add Friend</span>
+            <div class="w-8"></div>
+          </div>
+          <div class="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
+            <div class="theme-card border rounded-2xl p-5 space-y-3 text-center">
+              <h3 class="font-editorial text-lg font-semibold">Connect via Friend Code</h3>
+              <p class="theme-muted">Share your personal code or enter a friend's code below to start 1-on-1 messaging.</p>
+              <input
+                type="text"
+                placeholder="e.g. AARON99"
+                value="${state.friendCodeInput}"
+                oninput="state.friendCodeInput = this.value"
+                class="w-full theme-subtle border rounded-xl px-4 py-3 text-center font-mono font-bold tracking-widest text-sm outline-none focus:ring-2 focus:ring-[#4A6B5D]"
+              />
+              <button onclick="sendFriendRequest()" class="w-full py-3 rounded-xl theme-sage-bg font-semibold shadow-2xs">Send Friend Request</button>
+              ${state.addFriendSuccess ? `<p class="text-xs font-semibold text-[#4A6B5D] dark:text-[#7C9A82] pt-1">✓ Friend request sent successfully!</p>` : ''}
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      // =========================================================================
+      // 5. MAIN TABS (Home, Reader, Social, Journey)
+      // =========================================================================
+      let mainContent = '';
+
+      if (state.rootTab === 'home') {
+        mainContent = `
+          ${renderGlobalTopHeader()}
+          <div class="flex-1 overflow-y-auto thin-scroll px-5 pb-6 space-y-5">
+            <!-- Greeting & Sabbath Toggle -->
+            <div class="flex items-center justify-between pt-1">
+              <div>
+                <p class="text-[11px] uppercase tracking-widest theme-muted">Monday Morning</p>
+                <h1 class="font-editorial text-2xl font-medium mt-0.5">Grace & peace, Aaron</h1>
+              </div>
+              <button
+                onclick="state.sabbathPreview = !state.sabbathPreview; renderApp();"
+                class="px-2.5 py-1 rounded-full text-[10.5px] font-medium theme-subtle border"
+              >
+                ${state.sabbathPreview ? '🌿 Sabbath View' : 'Weekday View'}
+              </button>
+            </div>
+
+            <!-- Today's Reading Card -->
+            ${state.sabbathPreview ? `
+              <div class="theme-card border rounded-3xl p-5 text-center space-y-2.5 shadow-2xs">
+                <div class="w-11 h-11 rounded-2xl theme-sage-pill mx-auto flex items-center justify-center text-lg">🌿</div>
+                <h2 class="font-editorial text-xl font-semibold">Sabbath Rest Day</h2>
+                <p class="text-xs theme-muted max-w-[260px] mx-auto leading-relaxed">
+                  No scheduled chapters today. Rest in His grace and read freely whenever you'd like.
+                </p>
+                <div class="pt-1">
+                  <button onclick="navigateRoot('reader')" class="px-4 py-2 rounded-xl theme-sage-pill text-xs font-semibold">Open Bible Freely</button>
+                </div>
+              </div>
+            ` : `
+              <div class="theme-card border rounded-3xl p-4 space-y-3.5 shadow-2xs">
+                <div class="flex items-center justify-between">
+                  <span class="text-[10.5px] font-semibold uppercase tracking-wider text-[#4A6B5D] dark:text-[#7C9A82]">Today's Scripture</span>
+                  <span class="text-[11px] theme-muted">Morning & Evening</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2.5">
+                  <button onclick="state.morningOtRead = !state.morningOtRead; renderApp();" class="p-3 rounded-2xl border text-left transition-all ${state.morningOtRead ? 'theme-sage-pill border-transparent' : 'theme-subtle'}">
+                    <div class="flex items-center justify-between text-[10px] font-semibold uppercase"><span>Morning OT</span><span>${state.morningOtRead ? '✓' : '○'}</span></div>
+                    <p class="font-editorial text-base font-semibold mt-1">Psalm 23</p>
+                  </button>
+                  <button onclick="state.eveningNtRead = !state.eveningNtRead; renderApp();" class="p-3 rounded-2xl border text-left transition-all ${state.eveningNtRead ? 'theme-sage-pill border-transparent' : 'theme-subtle'}">
+                    <div class="flex items-center justify-between text-[10px] font-semibold uppercase"><span>Evening NT</span><span>${state.eveningNtRead ? '✓' : '○'}</span></div>
+                    <p class="font-editorial text-base font-semibold mt-1">John 1</p>
+                  </button>
+                </div>
+                <div class="flex items-center gap-2 pt-0.5">
+                  <button onclick="navigateRoot('reader')" class="flex-1 py-2.5 px-3 rounded-2xl theme-sage-bg text-xs font-semibold text-center shadow-2xs">Read in App</button>
+                  <button onclick="state.physicalBibleChecked = !state.physicalBibleChecked; renderApp();" class="py-2.5 px-3.5 rounded-2xl border text-xs font-medium transition-all ${state.physicalBibleChecked ? 'theme-amber-pill border-transparent font-semibold' : 'theme-subtle'}">
+                    ${state.physicalBibleChecked ? '✓ Paper Bible' : '📓 Physical Bible'}
+                  </button>
+                </div>
+              </div>
+            `}
+
+            <!-- Minimalist Updates Feed -->
+            <div class="space-y-2.5">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold uppercase tracking-wider theme-muted">Updates</span>
+                <span class="text-[11px] theme-muted">Quiet & unhurried</span>
+              </div>
+
+              <div class="space-y-2">
+                <button onclick="openMemberProfile('hannah')" class="w-full theme-card border rounded-2xl p-3 flex items-center justify-between gap-3 text-left hover:opacity-95 transition-all">
+                  <div class="flex items-center gap-3 min-w-0">
+                    <div class="relative shrink-0">${getAvatarSVG('hannah', 40)}<span class="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-[#4A6B5D] ring-2 ring-white"></span></div>
+                    <div class="min-w-0"><p class="text-xs font-semibold truncate">Hannah sent you a direct message</p><p class="text-[11px] theme-muted truncate">Tap to open conversation</p></div>
+                  </div>
+                  <span class="text-xs theme-muted">→</span>
+                </button>
+
+                <button onclick="openCircleRoom('grace')" class="w-full theme-subtle border rounded-2xl p-3 flex items-center justify-between gap-3 text-left hover:opacity-95 transition-all">
+                  <div class="flex items-center gap-3 min-w-0">
+                    <div class="relative shrink-0">${getCircleAvatarSVG('grace', 40)}<span class="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-[#4A6B5D] ring-2 ring-white"></span></div>
+                    <div class="min-w-0"><p class="text-xs font-semibold truncate">Grace & Psalms has new activity</p><p class="text-[11px] theme-muted truncate">Enter circle room</p></div>
+                  </div>
+                  <span class="w-2 h-2 rounded-full bg-[#4A6B5D] shrink-0"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (state.rootTab === 'reader') {
+        const books = ['Genesis', 'Psalms', 'Proverbs', 'Matthew', 'John', 'Romans', 'Philippians'];
+        const versions = [
+          { code: 'BSB', name: 'Berean Standard Bible' },
+          { code: 'WEB', name: 'World English Bible' },
+          { code: 'KJV', name: 'King James Version' }
+        ];
+
+        mainContent = `
+          <!-- Custom Dark-Safe Selector Header -->
+          <header class="px-4 pt-2 pb-2.5 border-b theme-border flex items-center justify-between gap-2 shrink-0 relative">
+            <button onclick="state.readerChapter = Math.max(1, state.readerChapter - 1); renderApp();" class="w-8 h-8 rounded-full theme-subtle border flex items-center justify-center text-xs">‹</button>
+            <div class="flex items-center gap-1.5">
+              <button onclick="state.readerPickerOpen = state.readerPickerOpen === 'book' ? null : 'book'; renderApp();" class="px-3.5 py-1.5 rounded-full theme-subtle border text-xs font-semibold flex items-center gap-1.5">
+                <span>${state.readerBook} ${state.readerChapter}</span>
+                <span class="text-[10px] opacity-60">▾</span>
+              </button>
+              <button onclick="state.readerPickerOpen = state.readerPickerOpen === 'version' ? null : 'version'; renderApp();" class="px-2.5 py-1.5 rounded-full theme-sage-pill text-xs font-semibold">${state.readerVersion} ▾</button>
+            </div>
+            <button onclick="state.readerChapter = Math.min(21, state.readerChapter + 1); renderApp();" class="w-8 h-8 rounded-full theme-subtle border flex items-center justify-center text-xs">›</button>
+
+            ${state.readerPickerOpen === 'book' ? `
+              <div class="absolute top-12 left-1/2 -translate-x-1/2 z-30 w-64 theme-card border rounded-2xl shadow-xl p-3 space-y-2">
+                <div class="flex items-center justify-between pb-1 border-b theme-border"><span class="text-[11px] font-semibold uppercase theme-muted">Select Book</span><button onclick="state.readerPickerOpen = null; renderApp();" class="text-xs theme-muted">✕</button></div>
+                <div class="grid grid-cols-2 gap-1.5">
+                  ${books.map(b => `<button onclick="state.readerBook = '${b}'; state.readerPickerOpen = null; renderApp();" class="px-2.5 py-1.5 rounded-xl text-left text-xs ${state.readerBook === b ? 'theme-sage-pill font-semibold' : 'hover:opacity-80'}">${b}</button>`).join('')}
+                </div>
+              </div>
+            ` : ''}
+
+            ${state.readerPickerOpen === 'version' ? `
+              <div class="absolute top-12 left-1/2 -translate-x-1/2 z-30 w-60 theme-card border rounded-2xl shadow-xl p-2 space-y-1">
+                ${versions.map(v => `<button onclick="state.readerVersion = '${v.code}'; state.readerPickerOpen = null; renderApp();" class="w-full text-left px-3 py-2 rounded-xl text-xs ${state.readerVersion === v.code ? 'theme-sage-pill font-semibold' : ''}"><strong>${v.code}</strong> · ${v.name}</button>`).join('')}
+              </div>
+            ` : ''}
+          </header>
+
+          <!-- Scripture Canvas -->
+          <div class="flex-1 overflow-y-auto thin-scroll px-6 py-5 space-y-4 font-editorial relative">
+            ${state.shareToast ? `<div class="sticky top-0 z-20 px-3.5 py-2 rounded-2xl theme-sage-bg font-sans text-xs text-center shadow-md">✓ ${state.shareToast}</div>` : ''}
+            <div class="text-center space-y-1 pb-1">
+              <p class="font-sans text-[10px] uppercase tracking-widest theme-muted">${state.readerVersion} Translation</p>
+              <h2 class="text-2xl font-semibold">${state.readerBook} ${state.readerChapter}</h2>
+            </div>
+            <p class="text-[16px] leading-[1.75]"><sup class="font-sans text-[10px] theme-muted mr-1">1</sup>In the beginning was the Word, and the Word was with God, and the Word was God.</p>
+            <p class="text-[16px] leading-[1.75]"><sup class="font-sans text-[10px] theme-muted mr-1">4</sup>In Him was life, and that life was the light of men.</p>
+            <div onclick="state.shareDrawerOpen = true; renderApp();" class="rounded-2xl theme-sage-pill p-3.5 cursor-pointer hover:opacity-95">
+              <p class="text-[16px] leading-[1.7]"><sup class="font-sans text-[10px] mr-1">14</sup>And the Word became flesh and dwelt among us... <span class="font-sans text-xs underline font-semibold ml-2">✍️ Share Reflection</span></p>
+            </div>
+          </div>
+
+          <!-- Reader Footer Bar -->
+          <div class="theme-card border-t theme-border p-3.5 shrink-0 flex items-center justify-between">
+            <button onclick="state.morningOtRead = !state.morningOtRead; renderApp();" class="px-3.5 py-2 rounded-xl border text-xs font-medium ${state.morningOtRead ? 'theme-sage-pill border-transparent' : 'theme-subtle'}">
+              ${state.morningOtRead ? '✓ Chapter Read' : 'Mark Chapter Read'}
+            </button>
+            <button onclick="state.shareDrawerOpen = true; renderApp();" class="px-4 py-2 rounded-xl theme-sage-bg text-xs font-semibold">+ Jot Reflection</button>
+          </div>
+
+          <!-- Targeted Reflection Drawer -->
+          ${state.shareDrawerOpen ? `
+            <div class="absolute inset-0 z-50 bg-black/50 backdrop-blur-xs flex flex-col justify-end">
+              <div class="theme-card rounded-t-[32px] p-6 space-y-4 border-t theme-border shadow-2xl">
+                <div class="flex items-center justify-between pb-2 border-b theme-border"><h3 class="font-editorial text-lg font-semibold">Share Reflection</h3><button onclick="state.shareDrawerOpen = false; renderApp();" class="text-xs theme-muted">✕</button></div>
+                <textarea oninput="state.shareDraftText = this.value" placeholder="What stood out to you in this passage?" class="w-full theme-subtle border rounded-2xl p-3 text-xs leading-relaxed h-28 resize-none outline-none focus:ring-2 focus:ring-[#4A6B5D]">${state.shareDraftText}</textarea>
+                <div class="space-y-2">
+                  <label class="text-[10px] font-semibold uppercase tracking-wider theme-muted block">Choose Destination</label>
+                  <div class="grid grid-cols-2 gap-2 text-xs">
+                    <button onclick="state.shareDestination = 'private'; renderApp();" class="p-2.5 rounded-xl border text-left ${state.shareDestination === 'private' ? 'theme-sage-pill border-transparent font-semibold' : 'theme-subtle'}">🔒 Private (Only Me)</button>
+                    <button onclick="state.shareDestination = 'friends'; renderApp();" class="p-2.5 rounded-xl border text-left ${state.shareDestination === 'friends' ? 'theme-sage-pill border-transparent font-semibold' : 'theme-subtle'}">👥 All Friends</button>
+                    <button onclick="state.shareDestination = 'grace'; renderApp();" class="p-2.5 rounded-xl border text-left ${state.shareDestination === 'grace' ? 'theme-sage-pill border-transparent font-semibold' : 'theme-subtle'}">🌿 Grace & Psalms</button>
+                    <button onclick="state.shareDestination = 'mens'; renderApp();" class="p-2.5 rounded-xl border text-left ${state.shareDestination === 'mens' ? 'theme-sage-pill border-transparent font-semibold' : 'theme-subtle'}">⚔️ Men's Table</button>
+                  </div>
+                </div>
+                <div class="pt-2 flex items-center gap-2">
+                  <button onclick="state.shareDrawerOpen = false; renderApp();" class="flex-1 py-3 rounded-xl border text-xs font-medium theme-subtle">Cancel</button>
+                  <button onclick="submitReflection()" class="flex-1 py-3 rounded-xl theme-sage-bg text-xs font-semibold shadow-2xs">Share to Destination</button>
+                </div>
+              </div>
+            </div>
+          ` : ''}
+        `;
+      } else if (state.rootTab === 'social') {
+        mainContent = `
+          ${renderGlobalTopHeader()}
+          <div class="flex-1 overflow-y-auto thin-scroll px-5 py-3 space-y-6">
+            <!-- Top Section: Friends Grid (3-4 per row) -->
+            <div class="space-y-3">
+              <div class="flex items-center justify-between px-1">
+                <span class="text-[10px] font-semibold uppercase tracking-wider theme-muted">Friends (1-on-1 DMs)</span>
+                <button onclick="openAddFriendModal()" class="text-xs text-[#4A6B5D] dark:text-[#7C9A82] font-semibold">+ Add Friend</button>
+              </div>
+              <div class="grid grid-cols-3 gap-3">
+                ${state.friendList.map(fid => {
+                  const f = state.members[fid];
+                  return `
+                    <button onclick="openMemberProfile('${fid}')" class="theme-card border rounded-2xl p-3 flex flex-col items-center text-center hover:border-[#4A6B5D] transition-all relative group">
+                      <div class="relative mb-2">
+                        ${getAvatarSVG(fid, 52)}
+                        ${fid === 'hannah' ? `<span class="absolute top-0 right-0 w-3 h-3 rounded-full bg-[#4A6B5D] ring-2 ring-white dark:ring-[#1E1E1C]"></span>` : ''}
+                      </div>
+                      <span class="text-xs font-semibold truncate w-full">${f.name}</span>
+                    </button>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+
+            <!-- Bottom Section: Circles Grid (3-4 per row) -->
+            <div class="space-y-3">
+              <div class="flex items-center justify-between px-1">
+                <span class="text-[10px] font-semibold uppercase tracking-wider theme-muted">Your Circles</span>
+                <button onclick="alert('Create a new circle drawer')" class="text-xs text-[#4A6B5D] dark:text-[#7C9A82] font-semibold">+ New Circle</button>
+              </div>
+              <div class="grid grid-cols-3 gap-3">
+                ${state.circleList.map(cid => {
+                  const circ = state.circles[cid];
+                  return `
+                    <button onclick="openCircleRoom('${cid}')" class="theme-card border rounded-2xl p-3 flex flex-col items-center text-center hover:border-[#4A6B5D] transition-all">
+                      <div class="mb-2">
+                        ${getCircleAvatarSVG(cid, 52)}
+                      </div>
+                      <span class="text-xs font-semibold truncate w-full">${circ.name}</span>
+                    </button>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        mainContent = `
+          ${renderGlobalTopHeader()}
+          <div class="flex-1 overflow-y-auto thin-scroll px-5 py-4 space-y-6">
+            <div class="theme-card border rounded-2xl p-5 flex items-center justify-between shadow-2xs">
+              <div>
+                <p class="text-[10px] uppercase tracking-wider theme-muted">Chapters Read</p>
+                <p class="font-editorial text-2xl font-semibold mt-0.5">142</p>
+              </div>
+              <div>
+                <p class="text-[10px] uppercase tracking-wider theme-muted">Books Explored</p>
+                <p class="font-editorial text-2xl font-semibold mt-0.5">18 / 66</p>
+              </div>
+            </div>
+
+            <div class="space-y-3">
+              <span class="text-[10px] font-semibold uppercase tracking-wider theme-muted px-1">Visual Scripture Mosaic</span>
+              <div class="grid grid-cols-4 gap-2">
+                ${state.journeyBooks.map(b => `
+                  <div class="${b.status === 'done' ? 'theme-sage-bg text-white' : b.status === 'active' ? 'theme-amber-pill font-semibold' : 'theme-subtle theme-muted opacity-70'} rounded-2xl p-3 text-center">
+                    <p class="text-xs font-bold tracking-tight">${b.code}</p>
+                    <p class="text-[9px] mt-0.5 opacity-90">${b.status === 'done' ? 'Complete' : b.status === 'active' ? 'Read ' + b.read : '0 ch'}</p>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      frame.innerHTML = `
+        ${renderStatusBar()}
+        ${mainContent}
+        ${renderGlobalBottomNav()}
+      `;
+    }
+
+    // Initialize prototype on load
+    window.addEventListener('DOMContentLoaded', () => {
+      renderApp();
+    });
+  </script>
+</body>
+</html>

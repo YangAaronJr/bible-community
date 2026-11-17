@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   BookOpen,
   Camera,
@@ -9,6 +10,7 @@ import {
   ChevronLeft,
   Copy,
   Loader2,
+  LogOut,
   RefreshCw,
 } from "lucide-react";
 import { getInitials } from "@/components/ui/Navbar";
@@ -32,6 +34,7 @@ export default function CircleSettingsView({
   onBack?: () => void;
   onCircleUpdated?: () => void;
 }) {
+  const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
   const [circle, setCircle] = useState<CircleSettingsData | null>(null);
   const [nameInput, setNameInput] = useState("");
@@ -44,6 +47,8 @@ export default function CircleSettingsView({
   const [savingName, setSavingName] = useState(false);
   const [savingPlan, setSavingPlan] = useState(false);
   const [syncingMyPlan, setSyncingMyPlan] = useState(false);
+  const [confirmingLeave, setConfirmingLeave] = useState(false);
+  const [leavingCircle, setLeavingCircle] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
@@ -248,6 +253,39 @@ export default function CircleSettingsView({
     } finally {
       setSyncingMyPlan(false);
     }
+  }
+
+  async function handleLeaveCircle() {
+    if (!circle || !userId) return;
+    setLeavingCircle(true);
+    setFeedback(null);
+
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("circle_members")
+      .delete()
+      .eq("circle_id", circle.id)
+      .eq("user_id", userId);
+
+    if (error) {
+      setLeavingCircle(false);
+      setConfirmingLeave(false);
+      setFeedback({ type: "error", text: error.message });
+      return;
+    }
+
+    if (typeof window !== "undefined") {
+      try {
+        if (localStorage.getItem("active_circle_id") === circle.id) {
+          localStorage.removeItem("active_circle_id");
+        }
+      } catch {
+        // Ignore storage errors
+      }
+    }
+
+    router.push("/social");
+    router.refresh();
   }
 
   if (loading) {
@@ -461,6 +499,48 @@ export default function CircleSettingsView({
                 : "Sync My Plan to Circle"}
             </span>
           </button>
+        )}
+      </section>
+
+      {/* 4. Leave Circle */}
+      <section className="bg-white border border-[#E6E1D6] rounded-2xl p-5 space-y-3">
+        {!confirmingLeave ? (
+          <button
+            type="button"
+            onClick={() => setConfirmingLeave(true)}
+            className="w-full py-2.5 px-4 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50/70 dark:bg-red-950/20 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-700 dark:text-red-300 text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Leave Circle</span>
+          </button>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-xs text-[#6B7280] leading-relaxed">
+              Leave <strong className="text-[#1F2937]">{circle.name}</strong>?
+              You will need an invite code to rejoin later.
+            </p>
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                disabled={leavingCircle}
+                onClick={() => setConfirmingLeave(false)}
+                className="py-2.5 px-4 rounded-xl bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] text-xs font-medium text-[#1F2937] transition-colors cursor-pointer disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={leavingCircle}
+                onClick={handleLeaveCircle}
+                className="py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-60"
+              >
+                {leavingCircle && (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                )}
+                <span>{leavingCircle ? "Leaving..." : "Confirm Leave"}</span>
+              </button>
+            </div>
+          </div>
         )}
       </section>
     </div>

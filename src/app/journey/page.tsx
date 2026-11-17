@@ -85,7 +85,7 @@ const BOOK_CODES: Record<string, string> = {
 export default function JourneyPage() {
   const router = useRouter();
   const [progress, setProgress] = useState<ProgressRow[]>([]);
-  const [restDays, setRestDays] = useState<number[]>([0]);
+  const [restDays, setRestDays] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [testamentFilter, setTestamentFilter] = useState<"ALL" | "OT" | "NT">(
     "ALL"
@@ -117,9 +117,7 @@ export default function JourneyPage() {
     ]);
 
     setProgress(rows || []);
-    if (activeSched?.rest_days && activeSched.rest_days.length > 0) {
-      setRestDays(activeSched.rest_days);
-    }
+    setRestDays(activeSched?.rest_days ?? []);
     setLoading(false);
   }, [router]);
 
@@ -146,7 +144,7 @@ export default function JourneyPage() {
     restDays
       .map((d) => WEEKDAYS.find((w) => w.day === d)?.short)
       .filter(Boolean)
-      .join(" · ") || "Sun";
+      .join(" · ") || "None";
 
   const filteredBooks = BIBLE_BOOKS.filter((b) =>
     testamentFilter === "ALL" ? true : b.testament === testamentFilter

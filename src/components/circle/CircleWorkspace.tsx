@@ -29,7 +29,7 @@ import CircleSettingsView from "@/components/circle/CircleSettingsView";
 
 const RING_HALO_MS = 15 * 60 * 1000;
 
-type CircleSubView = "charlie" | "chat" | "prayer" | "docs" | "settings";
+type CircleSubView = "members" | "chat" | "prayer" | "docs" | "settings";
 
 function renderAvatar(
   name: string,
@@ -78,14 +78,13 @@ export default function CircleWorkspace({
   const [userId, setUserId] = useState<string | null>(null);
   const [activeCircle, setActiveCircle] = useState<CircleInfo | null>(null);
   const [members, setMembers] = useState<CircleMemberProfile[]>([]);
-  const [friendIds, setFriendIds] = useState<Set<string>>(new Set());
   const [sharedTodayIds, setSharedTodayIds] = useState<Set<string>>(new Set());
   const [ringHaloMap, setRingHaloMap] = useState<Map<string, number>>(
     new Map()
   );
   const [hasUnreadGroupChat, setHasUnreadGroupChat] = useState(false);
 
-  const [subView, setSubView] = useState<CircleSubView>("charlie");
+  const [subView, setSubView] = useState<CircleSubView>("members");
   const [menuOpen, setMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -149,7 +148,6 @@ export default function CircleWorkspace({
 
     const [
       { data: memberRows },
-      { data: friendshipRows },
       { data: notesToday },
       { data: latestGroupMsg },
       { data: recentRings },
@@ -159,11 +157,6 @@ export default function CircleWorkspace({
         .select("user_id, role")
         .eq("circle_id", circleRow.id)
         .order("joined_at", { ascending: true }),
-      supabase
-        .from("friendships")
-        .select("requester_id, addressee_id")
-        .eq("status", "accepted")
-        .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`),
       supabase
         .from("verse_notes")
         .select("user_id")
@@ -210,13 +203,6 @@ export default function CircleWorkspace({
       }))
     );
 
-    const friends = new Set<string>();
-    for (const f of friendshipRows || []) {
-      friends.add(
-        f.requester_id === user.id ? f.addressee_id : f.requester_id
-      );
-    }
-    setFriendIds(friends);
     setSharedTodayIds(new Set((notesToday || []).map((n) => n.user_id)));
 
     const haloMap = new Map<string, number>();
@@ -431,15 +417,15 @@ export default function CircleWorkspace({
             >
               <button
                 type="button"
-                onClick={() => openSubView("charlie")}
+                onClick={() => openSubView("members")}
                 className={`w-full text-left px-3 py-2.5 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer ${
-                  subView === "charlie"
+                  subView === "members"
                     ? "bg-[#EBF1EE] text-[#4A6B5D] font-semibold"
                     : "text-[#1F2937] hover:bg-[#F4F1EA]"
                 }`}
               >
                 <Users className="w-4 h-4 shrink-0" />
-                <span>Members (Charlie)</span>
+                <span>Members</span>
               </button>
 
               <button
@@ -514,7 +500,7 @@ export default function CircleWorkspace({
           circle={activeCircle}
           members={members}
           currentUserId={userId}
-          onBack={() => openSubView("charlie")}
+          onBack={() => openSubView("members")}
           onSelectMember={(m) => router.push(`/members/${m.user_id}`)}
         />
       ) : subView === "prayer" && userId ? (
@@ -529,16 +515,16 @@ export default function CircleWorkspace({
           circle={activeCircle}
           members={members}
           currentUserId={userId}
-          onBack={() => openSubView("charlie")}
+          onBack={() => openSubView("members")}
         />
       ) : subView === "settings" ? (
         <CircleSettingsView
           circleId={activeCircle.id}
-          onBack={() => openSubView("charlie")}
+          onBack={() => openSubView("members")}
           onCircleUpdated={loadCircleRoom}
         />
       ) : (
-        /* Spacious Avatar-First "Charlie" Constellation Canvas */
+        /* Spacious Avatar-First Constellation Canvas */
         <section className="space-y-4 pt-1 text-center">
           <div className="flex items-center justify-between px-1">
             <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[#6B7280]">
@@ -556,27 +542,17 @@ export default function CircleWorkspace({
             </button>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 pt-1">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-5 sm:gap-6 py-2">
             {members.map((member, index) => {
-              const isSelf = member.user_id === userId;
-              const isFriend = friendIds.has(member.user_id);
               const sharedToday = sharedTodayIds.has(member.user_id);
               const hasRingHalo = ringHaloMap.has(member.user_id);
-
-              const roleLabel = isSelf
-                ? "You"
-                : isFriend
-                  ? "Friend"
-                  : member.role === "leader"
-                    ? "Leader"
-                    : "Member";
 
               return (
                 <Link
                   key={member.user_id}
                   href={`/members/${member.user_id}`}
-                  className={`bg-white border border-[#E6E1D6] hover:border-[#4A6B5D] rounded-3xl p-4 flex flex-col items-center gap-2 transition-all group shadow-2xs ${
-                    index % 2 === 1 ? "sm:translate-y-1.5" : ""
+                  className={`py-2 px-2 flex flex-col items-center gap-2.5 transition-transform group ${
+                    index % 2 === 1 ? "sm:translate-y-2" : ""
                   }`}
                 >
                   <div className="relative">
@@ -593,11 +569,11 @@ export default function CircleWorkspace({
                           : "ring-1 ring-[#E6E1D6]"
                       }`}
                     >
-                      {renderAvatar(member.display_name, member.avatar_url, 60)}
+                      {renderAvatar(member.display_name, member.avatar_url, 68)}
                     </div>
                     {sharedToday && (
                       <span
-                        className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-[#4A6B5D] border-2 border-white dark:border-[#1E1E1C]"
+                        className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-[#4A6B5D] border-2 border-[#FAF9F6] dark:border-[#141413]"
                         title="Shared reflection today"
                       />
                     )}
@@ -605,15 +581,6 @@ export default function CircleWorkspace({
 
                   <span className="text-xs font-semibold text-[#1F2937] truncate w-full">
                     {member.display_name}
-                  </span>
-                  <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                      isFriend
-                        ? "bg-[#EBF1EE] text-[#4A6B5D]"
-                        : "bg-[#F4F1EA] text-[#6B7280]"
-                    }`}
-                  >
-                    {roleLabel}
                   </span>
                 </Link>
               );
