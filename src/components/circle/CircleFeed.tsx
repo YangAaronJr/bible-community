@@ -1,8 +1,6 @@
 "use client";
 
-import { useState } from "react";
 import ChatThread from "@/components/chat/ChatThread";
-import CircleDocsView from "@/components/circle/CircleDocsView";
 import type {
   CircleInfo,
   CircleMemberProfile,
@@ -23,19 +21,6 @@ export default function CircleFeed({
   onBack,
   onSelectMember,
 }: CircleFeedProps) {
-  const [showDocs, setShowDocs] = useState(false);
-
-  if (showDocs) {
-    return (
-      <CircleDocsView
-        circle={circle}
-        members={members}
-        currentUserId={currentUserId}
-        onBack={() => setShowDocs(false)}
-      />
-    );
-  }
-
   return (
     <ChatThread
       mode="circle"
@@ -49,7 +34,6 @@ export default function CircleFeed({
         const match = members.find((m) => m.user_id === participant.user_id);
         if (match) onSelectMember?.(match);
       }}
-      onOpenDocs={() => setShowDocs(true)}
     />
   );
 }
