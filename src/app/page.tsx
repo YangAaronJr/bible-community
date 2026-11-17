@@ -3,18 +3,17 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import {
+  ArrowRight,
   BookMarked,
   BookOpen,
   Check,
-  Heart,
   Loader2,
-  MessageCircle,
   Moon,
   SlidersHorizontal,
   Sparkles,
   Sun,
 } from "lucide-react";
-import Navbar from "@/components/ui/Navbar";
+import Navbar, { getInitials } from "@/components/ui/Navbar";
 import { createClient } from "@/lib/supabase/client";
 import {
   READING_PLAN_PRESETS,
@@ -30,25 +29,26 @@ interface ProgressEntry {
   read_in_physical_bible: boolean;
 }
 
-interface UpdateItem {
+interface FriendDmUpdate {
+  kind: "friend-dm";
   id: string;
-  kind: "dm" | "note" | "prayer";
-  actor: string;
-  summary: string;
-  href: string;
-  time: string;
+  friendshipId: string;
+  actorName: string;
+  avatarUrl: string | null;
+  unread: boolean;
+  createdAt: string;
 }
 
-function formatShortTime(iso: string): string {
-  const diffMin = Math.max(
-    1,
-    Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
-  );
-  if (diffMin < 60) return `${diffMin}m`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h`;
-  return `${Math.floor(diffHr / 24)}d`;
+interface CircleActivityUpdate {
+  kind: "circle-activity";
+  id: string;
+  circleId: string;
+  circleName: string;
+  avatarUrl: string | null;
+  createdAt: string;
 }
+
+type UpdateItem = FriendDmUpdate | CircleActivityUpdate;
 
 export default function HomePage() {
   const [userId, setUserId] = useState<string | null>(null);
@@ -118,82 +118,175 @@ export default function HomePage() {
       setActiveCustomSchedule(null);
     }
 
-    // Fetch Today's Updates (Active Prayer Requests, DMs, and recent Circle Notes)
-    // Rings remain quiet (Web Push + Circle avatar halo only)
+    // Fetch minimalist Updates: unread 1-on-1 Friend DMs & non-granular Circle activity
+    // (No message previews, docs, prayers, or reading checklists exposed here)
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const [{ data: prayers }, { data: messages }, { data: notes }] =
-      await Promise.all([
-        supabase
-          .from("prayer_requests")
-          .select("id, user_id, content, created_at")
-          .eq("is_answered", false)
-          .order("created_at", { ascending: false })
-          .limit(3),
-        supabase
-          .from("messages")
-          .select("id, sender_id, recipient_id, content, created_at")
-          .neq("sender_id", user.id)
-          .gte("created_at", since24h)
-          .order("created_at", { ascending: false })
-          .limit(4),
-        supabase
-          .from("verse_notes")
-          .select("id, user_id, book, chapter, verse_start, content, created_at")
-          .neq("user_id", user.id)
-          .gte("created_at", since24h)
-          .order("created_at", { ascending: false })
-          .limit(3),
-      ]);
+    const [{ data: friendships }, { data: memberships }] = await Promise.all([
+      supabase
+        .from("friendships")
+        .select("id, requester_id, addressee_id")
+        .eq("status", "accepted")
+        .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`),
+      supabase
+        .from("circle_members")
+        .select("circle_id")
+        .eq("user_id", user.id),
+    ]);
 
-    const actorIds = new Set<string>();
-    (prayers || []).forEach((p) => actorIds.add(p.user_id));
-    (messages || []).forEach((m) => actorIds.add(m.sender_id));
-    (notes || []).forEach((n) => actorIds.add(n.user_id));
+    const items: UpdateItem[] = [];
 
-    const nameMap = new Map<string, string>();
-    if (actorIds.size > 0) {
-      const { data: profs } = await supabase
-        .from("profiles")
-        .select("id, display_name")
-        .in("id", Array.from(actorIds));
-      for (const p of profs || []) {
-        nameMap.set(p.id, p.display_name);
+    // 1. Incoming 1-on-1 Friend DMs
+    const acceptedFriendships = friendships || [];
+    if (acceptedFriendships.length > 0) {
+      const friendshipIds = acceptedFriendships.map((f) => f.id);
+      const { data: dmRows } = await supabase
+        .from("messages")
+        .select("friendship_id, sender_id, created_at")
+        .in("friendship_id", friendshipIds)
+        .neq("sender_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(30);
+
+      const latestByFriendship = new Map<
+        string,
+        { sender_id: string; created_at: string }
+      >();
+      for (const m of dmRows || []) {
+        if (m.friendship_id && !latestByFriendship.has(m.friendship_id)) {
+          latestByFriendship.set(m.friendship_id, {
+            sender_id: m.sender_id,
+            created_at: m.created_at,
+          });
+        }
+      }
+
+      const unreadDms: Array<{
+        friendshipId: string;
+        senderId: string;
+        createdAt: string;
+      }> = [];
+      for (const [fid, info] of latestByFriendship.entries()) {
+        const lastRead =
+          typeof window !== "undefined"
+            ? localStorage.getItem(`dm_last_read_${fid}`)
+            : null;
+        const isUnread =
+          !lastRead || new Date(info.created_at) > new Date(lastRead);
+        if (isUnread || info.created_at >= since24h) {
+          unreadDms.push({
+            friendshipId: fid,
+            senderId: info.sender_id,
+            createdAt: info.created_at,
+          });
+        }
+      }
+
+      if (unreadDms.length > 0) {
+        const senderIds = Array.from(new Set(unreadDms.map((d) => d.senderId)));
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id, display_name, avatar_url")
+          .in("id", senderIds);
+        const profMap = new Map((profs || []).map((p) => [p.id, p]));
+
+        for (const dm of unreadDms) {
+          const prof = profMap.get(dm.senderId);
+          const lastRead =
+            typeof window !== "undefined"
+              ? localStorage.getItem(`dm_last_read_${dm.friendshipId}`)
+              : null;
+          items.push({
+            kind: "friend-dm",
+            id: `dm-${dm.friendshipId}`,
+            friendshipId: dm.friendshipId,
+            actorName: prof?.display_name || "Friend",
+            avatarUrl: prof?.avatar_url || null,
+            unread: !lastRead || new Date(dm.createdAt) > new Date(lastRead),
+            createdAt: dm.createdAt,
+          });
+        }
       }
     }
 
-    const items: UpdateItem[] = [];
-    for (const p of prayers || []) {
-      items.push({
-        id: `prayer-${p.id}`,
-        kind: "prayer",
-        actor: nameMap.get(p.user_id) || "Circle Member",
-        summary: `Prayer Request: ${p.content}`,
-        href: "/circle",
-        time: formatShortTime(p.created_at),
-      });
-    }
-    for (const m of messages || []) {
-      items.push({
-        id: `msg-${m.id}`,
-        kind: m.recipient_id === user.id ? "dm" : "note",
-        actor: nameMap.get(m.sender_id) || "Circle Member",
-        summary: m.content,
-        href: "/circle",
-        time: formatShortTime(m.created_at),
-      });
-    }
-    for (const n of notes || []) {
-      items.push({
-        id: `note-${n.id}`,
-        kind: "note",
-        actor: nameMap.get(n.user_id) || "Circle Member",
-        summary: `${n.book} ${n.chapter}:${n.verse_start} — ${n.content}`,
-        href: `/reader?book=${encodeURIComponent(n.book)}&chapter=${n.chapter}`,
-        time: formatShortTime(n.created_at),
-      });
+    // 2. Non-granular Circle activity indicators
+    const circleIds = (memberships || []).map((m) => m.circle_id);
+    if (circleIds.length > 0) {
+      const [
+        { data: circleRows },
+        { data: recentCircleMsgs },
+        { data: recentPrayers },
+        { data: recentDocs },
+      ] = await Promise.all([
+        supabase
+          .from("circles")
+          .select("id, name, avatar_url")
+          .in("id", circleIds),
+        supabase
+          .from("messages")
+          .select("circle_id, created_at")
+          .in("circle_id", circleIds)
+          .is("recipient_id", null)
+          .neq("sender_id", user.id)
+          .gte("created_at", since24h)
+          .order("created_at", { ascending: false })
+          .limit(30),
+        supabase
+          .from("prayer_requests")
+          .select("circle_id, created_at")
+          .in("circle_id", circleIds)
+          .neq("user_id", user.id)
+          .gte("created_at", since24h)
+          .order("created_at", { ascending: false })
+          .limit(20),
+        supabase
+          .from("circle_docs")
+          .select("circle_id, updated_at")
+          .in("circle_id", circleIds)
+          .neq("updated_by", user.id)
+          .gte("updated_at", since24h)
+          .order("updated_at", { ascending: false })
+          .limit(20),
+      ]);
+
+      const latestActivityByCircle = new Map<string, string>();
+      const recordCircleActivity = (cid: string | null, iso: string) => {
+        if (!cid) return;
+        const prev = latestActivityByCircle.get(cid);
+        if (!prev || iso > prev) latestActivityByCircle.set(cid, iso);
+      };
+
+      for (const m of recentCircleMsgs || []) {
+        recordCircleActivity(m.circle_id, m.created_at);
+      }
+      for (const p of recentPrayers || []) {
+        recordCircleActivity(p.circle_id, p.created_at);
+      }
+      for (const d of recentDocs || []) {
+        recordCircleActivity(d.circle_id, d.updated_at);
+      }
+
+      for (const c of circleRows || []) {
+        const latestAt = latestActivityByCircle.get(c.id);
+        if (!latestAt) continue;
+        const lastRead =
+          typeof window !== "undefined"
+            ? localStorage.getItem(`circle_chat_last_read_${c.id}`)
+            : null;
+        if (!lastRead || new Date(latestAt) > new Date(lastRead)) {
+          items.push({
+            kind: "circle-activity",
+            id: `circle-${c.id}`,
+            circleId: c.id,
+            circleName: c.name,
+            avatarUrl: c.avatar_url,
+            createdAt: latestAt,
+          });
+        }
+      }
     }
 
-    setUpdates(items.slice(0, 5));
+    items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    setUpdates(items.slice(0, 6));
     setLoading(false);
   }, []);
 
@@ -523,18 +616,15 @@ export default function HomePage() {
           )}
         </section>
 
-        {/* Clean Today's Updates List */}
+        {/* Minimalist Non-Granular Updates Feed */}
         <section className="space-y-2.5">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]">
-              Today&apos;s Updates
+              Updates
             </span>
-            <Link
-              href="/circle"
-              className="text-[11px] font-medium text-[#4A6B5D] hover:underline"
-            >
-              Open Circles
-            </Link>
+            <span className="text-[11px] text-[#6B7280]">
+              Quiet &amp; unhurried
+            </span>
           </div>
 
           {loading ? (
@@ -547,44 +637,87 @@ export default function HomePage() {
               <p className="text-xs text-[#6B7280]">
                 All caught up · Visit{" "}
                 <Link
-                  href="/circle"
+                  href="/social"
                   className="text-[#4A6B5D] font-medium underline"
                 >
-                  Circles
+                  Social
                 </Link>{" "}
-                to share a reflection or prayer.
+                to connect with friends or open a Circle.
               </p>
             </div>
           ) : (
-            <div className="bg-white border border-[#E6E1D6] rounded-2xl divide-y divide-[#E6E1D6] overflow-hidden">
-              {updates.map((u) => (
-                <Link
-                  key={u.id}
-                  href={u.href}
-                  className="px-4 py-3 hover:bg-[#FAF9F6] transition-colors flex items-center gap-3"
-                >
-                  <span className="w-8 h-8 rounded-xl bg-[#EBF1EE] text-[#4A6B5D] flex items-center justify-center shrink-0">
-                    {u.kind === "prayer" ? (
-                      <Heart className="w-4 h-4" />
-                    ) : (
-                      <MessageCircle className="w-4 h-4" />
-                    )}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-semibold text-[#1F2937] truncate">
-                        {u.actor}
-                      </span>
-                      <span className="text-[10.5px] text-[#6B7280] shrink-0">
-                        {u.time}
-                      </span>
+            <div className="space-y-2">
+              {updates.map((u) =>
+                u.kind === "friend-dm" ? (
+                  <Link
+                    key={u.id}
+                    href={`/dm/${u.friendshipId}`}
+                    className="w-full bg-white border border-[#E6E1D6] rounded-2xl p-3 flex items-center justify-between gap-3 hover:opacity-95 transition-all shadow-2xs"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="relative shrink-0">
+                        <div className="w-10 h-10 rounded-full overflow-hidden bg-[#DDE6E1] text-[#4A6B5D] flex items-center justify-center text-xs font-semibold">
+                          {u.avatarUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={u.avatarUrl}
+                              alt={u.actorName}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            getInitials(u.actorName)
+                          )}
+                        </div>
+                        {u.unread && (
+                          <span className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-[#4A6B5D] ring-2 ring-white dark:ring-[#1E1E1C]" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-[#1F2937] truncate">
+                          {u.actorName.split(" ")[0]} sent you a direct message
+                        </p>
+                        <p className="text-[11px] text-[#6B7280] truncate">
+                          Tap to open conversation
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-xs text-[#6B7280] truncate mt-0.5">
-                      {u.summary}
-                    </p>
-                  </div>
-                </Link>
-              ))}
+                    <ArrowRight className="w-3.5 h-3.5 text-[#6B7280] shrink-0" />
+                  </Link>
+                ) : (
+                  <Link
+                    key={u.id}
+                    href={`/circles/${u.circleId}`}
+                    className="w-full bg-[#F4F1EA] border border-[#E6E1D6] rounded-2xl p-3 flex items-center justify-between gap-3 hover:opacity-95 transition-all"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="relative shrink-0">
+                        <div className="w-10 h-10 rounded-full overflow-hidden bg-[#DDE6E1] text-[#4A6B5D] flex items-center justify-center font-editorial text-sm font-semibold">
+                          {u.avatarUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={u.avatarUrl}
+                              alt={u.circleName}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            getInitials(u.circleName)
+                          )}
+                        </div>
+                        <span className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-[#4A6B5D] ring-2 ring-[#F4F1EA] dark:ring-[#252522]" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-[#1F2937] truncate">
+                          {u.circleName} has new activity
+                        </p>
+                        <p className="text-[11px] text-[#6B7280] truncate">
+                          Enter circle room
+                        </p>
+                      </div>
+                    </div>
+                    <span className="w-2 h-2 rounded-full bg-[#4A6B5D] shrink-0" />
+                  </Link>
+                )
+              )}
             </div>
           )}
         </section>
