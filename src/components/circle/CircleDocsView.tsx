@@ -5,7 +5,14 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
-import { ChevronLeft, FileText, Loader2, Plus, Trash2 } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  Loader2,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type {
   CircleInfo,
@@ -30,6 +37,26 @@ interface CircleDocsViewProps {
 }
 
 const DEFAULT_DOC_HTML = `<h2>Sunday Sermon Notes</h2><p>Tap anywhere to write together with your circle—headings, bullet points, and prayer checklists auto-save in real time.</p><ul data-type="taskList"><li data-type="taskItem" data-checked="false"><p>Share one takeaway in Circle chat</p></li></ul>`;
+
+function stripHtmlPreview(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatUpdatedAgo(iso: string): string {
+  const diffMin = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  return `${Math.floor(diffHr / 24)}d ago`;
+}
 
 export default function CircleDocsView({
   circle,
@@ -74,7 +101,16 @@ export default function CircleDocsView({
       const html = ed.getHTML();
       setSaveState("saving");
       setDocs((prev) =>
-        prev.map((d) => (d.id === docId ? { ...d, content: html } : d))
+        prev.map((d) =>
+          d.id === docId
+            ? {
+                ...d,
+                content: html,
+                updated_by: currentUserId,
+                updated_at: new Date().toISOString(),
+              }
+            : d
+        )
       );
 
       if (contentSaveTimerRef.current) clearTimeout(contentSaveTimerRef.current);
@@ -101,11 +137,7 @@ export default function CircleDocsView({
       .eq("circle_id", circle.id)
       .order("updated_at", { ascending: false });
 
-    const list = data || [];
-    setDocs(list);
-    if (list.length > 0 && !activeDocIdRef.current) {
-      setActiveDocId(list[0].id);
-    }
+    setDocs(data || []);
     setLoading(false);
   }, [circle.id]);
 
@@ -239,235 +271,250 @@ export default function CircleDocsView({
   async function handleDeleteDoc(docId: string) {
     const supabase = createClient();
     await supabase.from("circle_docs").delete().eq("id", docId);
-    const remaining = docs.filter((d) => d.id !== docId);
-    setDocs(remaining);
-    setActiveDocId(remaining[0]?.id || null);
+    setDocs((prev) => prev.filter((d) => d.id !== docId));
+    setActiveDocId(null);
   }
 
-  const lastEditorName =
-    activeDoc?.updated_by && memberMap.get(activeDoc.updated_by)
-      ? memberMap.get(activeDoc.updated_by)!.display_name.split(" ")[0]
-      : "Circle";
+  // 1. Document Editor View (when a doc is clicked)
+  if (activeDoc) {
+    const lastEditorName =
+      activeDoc.updated_by && memberMap.get(activeDoc.updated_by)
+        ? memberMap.get(activeDoc.updated_by)!.display_name.split(" ")[0]
+        : "Circle";
 
-  return (
-    <div className="fixed inset-0 z-40 bg-[#FAF9F6] flex flex-col pb-16">
-      <div className="max-w-xl w-full mx-auto flex-1 flex flex-col min-h-0">
-        {/* Top Circle Docs Header */}
-        <div className="px-4 py-3 bg-[#FAF9F6] border-b border-[#E6E1D6] flex items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onBack}
-              aria-label="Back to Group Chat"
-              className="w-8 h-8 rounded-full hover:bg-[#F4F1EA] flex items-center justify-center text-[#1F2937] cursor-pointer"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <h2 className="font-editorial text-[22px] font-medium text-[#1F2937] tracking-tight">
-              Circle Docs
-            </h2>
-          </div>
-
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
           <button
             type="button"
-            disabled={creating}
-            onClick={handleCreateDoc}
-            className="px-3 py-1.5 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-60"
+            onClick={() => setActiveDocId(null)}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-[#4A6B5D] hover:opacity-80 cursor-pointer"
           >
-            {creating ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Plus className="w-3.5 h-3.5" />
-            )}
-            <span>New Doc</span>
+            <ChevronLeft className="w-4 h-4" />
+            <span>All Docs</span>
           </button>
-        </div>
 
-        {loading ? (
-          <div className="flex-1 flex items-center justify-center text-xs text-[#6B7280]">
-            <Loader2 className="w-4 h-4 animate-spin mr-2" />
-            Loading shared docs...
-          </div>
-        ) : docs.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-3">
-            <span className="w-12 h-12 rounded-2xl bg-[#EBF1EE] text-[#4A6B5D] flex items-center justify-center">
-              <FileText className="w-6 h-6" />
+          <div className="flex items-center gap-3 text-[11px]">
+            <span className="text-[#6B7280]">
+              {saveState === "saving" ? "Saving..." : "Saved to Circle"}
             </span>
-            <div>
-              <h3 className="font-editorial text-lg font-medium text-[#1F2937]">
-                Shared Circle Notes
-              </h3>
-              <p className="text-xs text-[#6B7280] mt-1 max-w-xs">
-                Create a collaborative space for Sunday sermon notes, study
-                outlines, or discussion prompts.
-              </p>
-            </div>
             <button
               type="button"
-              onClick={handleCreateDoc}
-              className="px-4 py-2 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer"
+              onClick={() => handleDeleteDoc(activeDoc.id)}
+              title="Delete document"
+              aria-label="Delete document"
+              className="text-[#6B7280] hover:text-red-600 cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Create First Doc</span>
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
-        ) : (
-          <>
-            {/* Horizontal Document Switcher Pills */}
-            <div className="px-4 py-2.5 bg-[#FAF9F6] flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
-              {docs.map((doc) => {
-                const isActive = doc.id === activeDoc?.id;
-                return (
-                  <button
-                    key={doc.id}
-                    type="button"
-                    onClick={() => setActiveDocId(doc.id)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
-                      isActive
-                        ? "bg-[#4A6B5D] text-white"
-                        : "bg-[#F4F1EA] text-[#6B7280] border border-[#E6E1D6] hover:text-[#1F2937]"
-                    }`}
-                  >
-                    {doc.title.trim() || "Untitled Doc"}
-                  </button>
-                );
-              })}
+        </div>
+
+        <div className="bg-white border border-[#E6E1D6] rounded-2xl shadow-2xs flex flex-col overflow-hidden min-h-[60dvh]">
+          <div className="px-3.5 py-2 bg-[#F4F1EA] border-b border-[#E6E1D6] flex items-center gap-1.5 text-[11px] text-[#6B7280]">
+            <span className="w-2 h-2 rounded-full bg-[#4A6B5D] shrink-0" />
+            <span>
+              Last edited by {lastEditorName} ·{" "}
+              {formatUpdatedAgo(activeDoc.updated_at)}
+            </span>
+          </div>
+
+          <div className="px-4 pt-3 pb-1.5 border-b border-[#E6E1D6]">
+            <input
+              type="text"
+              value={activeDoc.title}
+              onChange={(e) => handleTitleChange(e.target.value)}
+              placeholder="Untitled Doc"
+              className="w-full font-editorial text-xl font-semibold text-[#1F2937] bg-transparent focus:outline-none"
+            />
+          </div>
+
+          {editor && (
+            <div className="px-3 py-1.5 border-b border-[#E6E1D6] flex items-center gap-1 bg-[#FAF9F6] overflow-x-auto no-scrollbar">
+              <button
+                type="button"
+                onClick={() =>
+                  editor.chain().focus().toggleHeading({ level: 1 }).run()
+                }
+                className={`px-2 py-1 rounded-lg text-[11px] font-semibold cursor-pointer ${
+                  editor.isActive("heading", { level: 1 })
+                    ? "bg-[#EBF1EE] text-[#4A6B5D]"
+                    : "text-[#1F2937] hover:bg-[#F4F1EA]"
+                }`}
+              >
+                H1
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  editor.chain().focus().toggleHeading({ level: 2 }).run()
+                }
+                className={`px-2 py-1 rounded-lg text-[11px] font-semibold cursor-pointer ${
+                  editor.isActive("heading", { level: 2 })
+                    ? "bg-[#EBF1EE] text-[#4A6B5D]"
+                    : "text-[#1F2937] hover:bg-[#F4F1EA]"
+                }`}
+              >
+                H2
+              </button>
+              <button
+                type="button"
+                onClick={() => editor.chain().focus().toggleBold().run()}
+                className={`px-2 py-1 rounded-lg text-[11px] font-bold cursor-pointer ${
+                  editor.isActive("bold")
+                    ? "bg-[#EBF1EE] text-[#4A6B5D]"
+                    : "text-[#1F2937] hover:bg-[#F4F1EA]"
+                }`}
+              >
+                B
+              </button>
+              <button
+                type="button"
+                onClick={() => editor.chain().focus().toggleItalic().run()}
+                className={`px-2 py-1 rounded-lg text-[11px] italic font-serif cursor-pointer ${
+                  editor.isActive("italic")
+                    ? "bg-[#EBF1EE] text-[#4A6B5D]"
+                    : "text-[#1F2937] hover:bg-[#F4F1EA]"
+                }`}
+              >
+                I
+              </button>
+              <button
+                type="button"
+                onClick={() => editor.chain().focus().toggleBulletList().run()}
+                className={`px-2 py-1 rounded-lg text-[11px] font-medium cursor-pointer ${
+                  editor.isActive("bulletList")
+                    ? "bg-[#EBF1EE] text-[#4A6B5D]"
+                    : "text-[#1F2937] hover:bg-[#F4F1EA]"
+                }`}
+              >
+                • List
+              </button>
+              <button
+                type="button"
+                onClick={() => editor.chain().focus().toggleTaskList().run()}
+                className={`px-2 py-1 rounded-lg text-[11px] font-medium cursor-pointer ${
+                  editor.isActive("taskList")
+                    ? "bg-[#EBF1EE] text-[#4A6B5D]"
+                    : "text-[#4A6B5D] hover:bg-[#EBF1EE]"
+                }`}
+              >
+                ☑ Check
+              </button>
             </div>
+          )}
 
-            {/* Distraction-Free Collaborative TipTap Card */}
-            {activeDoc && (
-              <div className="flex-1 px-4 pb-4 flex flex-col min-h-0">
-                <div className="flex-1 bg-white border border-[#E6E1D6] rounded-2xl shadow-2xs flex flex-col overflow-hidden">
-                  {/* Status & Title Bar */}
-                  <div className="px-3.5 py-2 bg-[#F4F1EA] border-b border-[#E6E1D6] flex items-center justify-between gap-2 text-[11px] shrink-0">
-                    <div className="flex items-center gap-1.5 text-[#1F2937] font-medium truncate">
-                      <span className="w-2 h-2 rounded-full bg-[#4A6B5D] shrink-0" />
-                      <span className="truncate">
-                        Last edited by {lastEditorName}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[#6B7280]">
-                        {saveState === "saving"
-                          ? "Saving..."
-                          : "Saved to Circle"}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteDoc(activeDoc.id)}
-                        title="Delete document"
-                        className="text-[#6B7280] hover:text-red-600 cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
+          <div className="flex-1 p-4">
+            <EditorContent editor={editor} />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-                  {/* Document Title Input */}
-                  <div className="px-4 pt-3 pb-1.5 border-b border-[#E6E1D6] shrink-0">
-                    <input
-                      type="text"
-                      value={activeDoc.title}
-                      onChange={(e) => handleTitleChange(e.target.value)}
-                      placeholder="Untitled Doc"
-                      className="w-full font-editorial text-lg font-semibold text-[#1F2937] bg-transparent focus:outline-none"
-                    />
-                  </div>
+  // 2. Docs List View (all docs created in this Circle)
+  return (
+    <div className="space-y-3.5">
+      <div className="flex items-center justify-between gap-2 px-0.5">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label="Back to members"
+            className="text-xs font-semibold text-[#4A6B5D] hover:opacity-80 cursor-pointer"
+          >
+            ← Members
+          </button>
+          <span className="text-[#E6E1D6]">·</span>
+          <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[#6B7280]">
+            Shared Circle Docs
+          </span>
+        </div>
 
-                  {/* Minimal Rich-Text Formatting Toolbar */}
-                  {editor && (
-                    <div className="px-3 py-1.5 border-b border-[#E6E1D6] flex items-center gap-1 bg-[#FAF9F6] shrink-0 overflow-x-auto no-scrollbar">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          editor.chain().focus().toggleHeading({ level: 1 }).run()
-                        }
-                        className={`px-2 py-1 rounded-lg text-[11px] font-semibold cursor-pointer ${
-                          editor.isActive("heading", { level: 1 })
-                            ? "bg-[#EBF1EE] text-[#4A6B5D]"
-                            : "text-[#1F2937] hover:bg-[#F4F1EA]"
-                        }`}
-                      >
-                        H1
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          editor.chain().focus().toggleHeading({ level: 2 }).run()
-                        }
-                        className={`px-2 py-1 rounded-lg text-[11px] font-semibold cursor-pointer ${
-                          editor.isActive("heading", { level: 2 })
-                            ? "bg-[#EBF1EE] text-[#4A6B5D]"
-                            : "text-[#1F2937] hover:bg-[#F4F1EA]"
-                        }`}
-                      >
-                        H2
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          editor.chain().focus().toggleBold().run()
-                        }
-                        className={`px-2 py-1 rounded-lg text-[11px] font-bold cursor-pointer ${
-                          editor.isActive("bold")
-                            ? "bg-[#EBF1EE] text-[#4A6B5D]"
-                            : "text-[#1F2937] hover:bg-[#F4F1EA]"
-                        }`}
-                      >
-                        B
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          editor.chain().focus().toggleItalic().run()
-                        }
-                        className={`px-2 py-1 rounded-lg text-[11px] italic font-serif cursor-pointer ${
-                          editor.isActive("italic")
-                            ? "bg-[#EBF1EE] text-[#4A6B5D]"
-                            : "text-[#1F2937] hover:bg-[#F4F1EA]"
-                        }`}
-                      >
-                        I
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          editor.chain().focus().toggleBulletList().run()
-                        }
-                        className={`px-2 py-1 rounded-lg text-[11px] font-medium cursor-pointer ${
-                          editor.isActive("bulletList")
-                            ? "bg-[#EBF1EE] text-[#4A6B5D]"
-                            : "text-[#1F2937] hover:bg-[#F4F1EA]"
-                        }`}
-                      >
-                        • List
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          editor.chain().focus().toggleTaskList().run()
-                        }
-                        className={`px-2 py-1 rounded-lg text-[11px] font-medium cursor-pointer ${
-                          editor.isActive("taskList")
-                            ? "bg-[#EBF1EE] text-[#4A6B5D]"
-                            : "text-[#4A6B5D] hover:bg-[#EBF1EE]"
-                        }`}
-                      >
-                        ☑ Check
-                      </button>
-                    </div>
-                  )}
+        <button
+          type="button"
+          disabled={creating}
+          onClick={handleCreateDoc}
+          className="px-3 py-1.5 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white text-xs font-medium inline-flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-60"
+        >
+          {creating ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Plus className="w-3.5 h-3.5" />
+          )}
+          <span>New Doc</span>
+        </button>
+      </div>
 
-                  {/* Editable Paper Canvas */}
-                  <div className="flex-1 overflow-y-auto p-4">
-                    <EditorContent editor={editor} />
+      {loading ? (
+        <div className="p-8 bg-white border border-[#E6E1D6] rounded-2xl flex items-center justify-center text-xs text-[#6B7280]">
+          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+          Loading shared docs...
+        </div>
+      ) : docs.length === 0 ? (
+        <div className="bg-white border border-[#E6E1D6] rounded-2xl p-8 text-center space-y-3">
+          <span className="w-12 h-12 rounded-2xl bg-[#EBF1EE] text-[#4A6B5D] flex items-center justify-center mx-auto">
+            <FileText className="w-6 h-6" />
+          </span>
+          <div>
+            <h3 className="font-editorial text-lg font-medium text-[#1F2937]">
+              Shared Circle Docs
+            </h3>
+            <p className="text-xs text-[#6B7280] mt-1 max-w-xs mx-auto">
+              Create a collaborative space for Sunday sermon notes, study
+              outlines, or discussion prompts.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleCreateDoc}
+            disabled={creating}
+            className="px-4 py-2 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Create First Doc</span>
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {docs.map((doc) => {
+            const editorName =
+              doc.updated_by && memberMap.get(doc.updated_by)
+                ? memberMap.get(doc.updated_by)!.display_name.split(" ")[0]
+                : "Circle";
+            const preview = stripHtmlPreview(doc.content);
+
+            return (
+              <button
+                key={doc.id}
+                type="button"
+                onClick={() => setActiveDocId(doc.id)}
+                className="w-full text-left bg-white hover:bg-[#FCFBF8] border border-[#E6E1D6] hover:border-[#4A6B5D] rounded-2xl p-4 flex items-center justify-between gap-3 transition-all shadow-2xs cursor-pointer group"
+              >
+                <div className="flex items-start gap-3 min-w-0">
+                  <span className="w-9 h-9 rounded-xl bg-[#EBF1EE] text-[#4A6B5D] flex items-center justify-center shrink-0 mt-0.5">
+                    <FileText className="w-4 h-4" />
+                  </span>
+                  <div className="min-w-0 space-y-1">
+                    <h3 className="font-editorial text-base font-semibold text-[#1F2937] truncate group-hover:text-[#4A6B5D] transition-colors">
+                      {doc.title.trim() || "Untitled Doc"}
+                    </h3>
+                    <p className="text-[11px] text-[#6B7280]">
+                      Edited by {editorName} · {formatUpdatedAgo(doc.updated_at)}
+                    </p>
+                    {preview && (
+                      <p className="text-xs text-[#6B7280] line-clamp-1">
+                        {preview}
+                      </p>
+                    )}
                   </div>
                 </div>
-              </div>
-            )}
-          </>
-        )}
-      </div>
+                <ChevronRight className="w-4 h-4 text-[#6B7280] group-hover:text-[#4A6B5D] shrink-0 transition-colors" />
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
