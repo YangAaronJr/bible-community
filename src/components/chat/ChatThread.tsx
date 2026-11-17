@@ -22,6 +22,7 @@ import { BIBLE_BOOKS } from "@/lib/plans/reading-plans";
 import { fetchChapter } from "@/lib/bible/bible-api";
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/lib/types/database";
+import ThreadDrawer from "@/components/chat/ThreadDrawer";
 
 export interface ChatParticipant {
   user_id: string;
@@ -61,14 +62,23 @@ export interface ChatThreadProps {
   onMessagesUpdated?: (latestCreatedAt: string | null) => void;
 }
 
-function formatChatTime(iso: string): string {
+export function formatChatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], {
     hour: "numeric",
     minute: "2-digit",
   });
 }
 
-function parseScriptureRef(
+export function formatRelativeAgo(iso: string): string {
+  const diffMin = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  return `${Math.floor(diffHr / 24)}d ago`;
+}
+
+export function parseScriptureRef(
   text: string
 ): { label: string; book: string; chapter: number } | null {
   const sortedBooks = [...BIBLE_BOOKS].sort(
@@ -93,7 +103,7 @@ function parseScriptureRef(
   return null;
 }
 
-function renderChatAvatar(
+export function renderChatAvatar(
   participant: ChatParticipant | undefined,
   sizePx = 34
 ) {
@@ -152,7 +162,9 @@ export default function ChatThread({
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [replyingTo, setReplyingTo] = useState<ChatMessageRow | null>(null);
+  const [activeThreadRootId, setActiveThreadRootId] = useState<string | null>(
+    null
+  );
   const [prayingIds, setPrayingIds] = useState<Set<string>>(new Set());
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -239,7 +251,9 @@ export default function ChatThread({
               return [...prev, newMsg];
             });
             onMessagesUpdated?.(newMsg.created_at);
-            scrollToBottom();
+            if (newMsg.parent_id === null) {
+              scrollToBottom();
+            }
           } else if (payload.eventType === "DELETE") {
             const oldId = (payload.old as { id?: string })?.id;
             if (oldId) {
@@ -356,7 +370,7 @@ export default function ChatThread({
         friendship_id: mode === "dm" ? threadId : null,
         sender_id: currentUserId,
         recipient_id: mode === "circle" ? null : (peerUserId ?? null),
-        parent_id: replyingTo ? replyingTo.id : null,
+        parent_id: null,
         content: finalContent,
         image_url: uploadedImageUrl,
         ocr_text: extractedOcrText,
@@ -382,7 +396,6 @@ export default function ChatThread({
 
       setContent("");
       setComposeMode("text");
-      setReplyingTo(null);
       setShowAttachmentTray(false);
       clearSelectedFile();
     } catch (err: unknown) {
@@ -440,6 +453,10 @@ export default function ChatThread({
         });
       })
     : topLevelPosts;
+
+  const activeThreadRoot = activeThreadRootId
+    ? messages.find((m) => m.id === activeThreadRootId) || null
+    : null;
 
   const selectedBookMeta =
     BIBLE_BOOKS.find((b) => b.name === verseBook) || BIBLE_BOOKS[0];
@@ -632,7 +649,7 @@ export default function ChatThread({
                         <div className="flex items-center gap-2.5">
                           <button
                             type="button"
-                            onClick={() => setReplyingTo(msg)}
+                            onClick={() => setActiveThreadRootId(msg.id)}
                             className="text-[11px] text-[#4A6B5D] font-medium hover:underline cursor-pointer"
                           >
                             Reply
@@ -705,7 +722,7 @@ export default function ChatThread({
                       <div className="flex items-center justify-end gap-3 mt-1.5">
                         <button
                           type="button"
-                          onClick={() => setReplyingTo(msg)}
+                          onClick={() => setActiveThreadRootId(msg.id)}
                           className="text-[11px] font-medium text-[#4A6B5D] hover:underline cursor-pointer"
                         >
                           Reply
@@ -767,7 +784,7 @@ export default function ChatThread({
                       <div className="flex items-center justify-end gap-3 mt-1.5">
                         <button
                           type="button"
-                          onClick={() => setReplyingTo(msg)}
+                          onClick={() => setActiveThreadRootId(msg.id)}
                           className="text-[11px] font-medium text-[#4A6B5D] hover:underline cursor-pointer"
                         >
                           Reply
@@ -842,7 +859,7 @@ export default function ChatThread({
                         <span>{formatChatTime(msg.created_at)}</span>
                         <button
                           type="button"
-                          onClick={() => setReplyingTo(msg)}
+                          onClick={() => setActiveThreadRootId(msg.id)}
                           className="underline cursor-pointer"
                         >
                           Reply
@@ -861,39 +878,25 @@ export default function ChatThread({
                   </div>
                 )}
 
-                {/* Threaded Replies */}
-                {replies.map((reply) => {
-                  const replyAuthor = participantMap.get(reply.sender_id);
-                  return (
-                    <div
-                      key={reply.id}
-                      className="ml-10 pl-3 border-l-2 border-[#E6E1D6] flex items-start gap-2"
+                {/* Compact Thread Reply Pill (Flat Main Stream — opens focused Thread Drawer) */}
+                {replies.length > 0 && (
+                  <div className={isMe && !isPrayer && !msg.image_url && !isVerseCard ? "flex justify-end" : "pl-11"}>
+                    <button
+                      type="button"
+                      onClick={() => setActiveThreadRootId(msg.id)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#EBF1EE] hover:bg-[#DCE7E1] border border-[#CFE0D6] text-[11px] font-medium text-[#4A6B5D] transition-colors cursor-pointer"
                     >
-                      <button
-                        type="button"
-                        onClick={() =>
-                          replyAuthor && onSelectParticipant?.(replyAuthor)
-                        }
-                        className="shrink-0 mt-0.5 cursor-pointer"
-                      >
-                        {renderChatAvatar(replyAuthor, 26)}
-                      </button>
-                      <div className="bg-[#F4F1EA] rounded-xl px-3 py-2 flex-1">
-                        <div className="flex items-center justify-between mb-0.5">
-                          <span className="text-[11.5px] font-semibold text-[#1F2937]">
-                            {replyAuthor?.display_name || "Fellow Reader"}
-                          </span>
-                          <span className="text-[10px] text-[#6B7280]">
-                            {formatChatTime(reply.created_at)}
-                          </span>
-                        </div>
-                        <p className="text-[12.5px] text-[#1F2937] whitespace-pre-wrap">
-                          {reply.content}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
+                      <MessageSquare className="w-3 h-3 shrink-0" />
+                      <span>
+                        {replies.length}{" "}
+                        {replies.length === 1 ? "reply" : "replies"} ·{" "}
+                        {formatRelativeAgo(
+                          replies[replies.length - 1].created_at
+                        )}
+                      </span>
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })
@@ -968,9 +971,8 @@ export default function ChatThread({
         </div>
       )}
 
-      {/* Active Reply / Photo / Prayer / Verse Banner */}
-      {(replyingTo ||
-        previewUrl ||
+      {/* Active Photo / Prayer / Verse Banner */}
+      {(previewUrl ||
         composeMode === "prayer" ||
         composeMode === "verse" ||
         error) && (
@@ -1047,13 +1049,6 @@ export default function ChatThread({
                   className="w-12 bg-white border border-[#E6E1D6] rounded-lg px-1.5 py-1 text-center text-[#1F2937]"
                 />
               </div>
-            ) : replyingTo ? (
-              <span className="text-[#4A6B5D] font-medium truncate">
-                <MessageSquare className="w-3 h-3 inline mr-1" />
-                Replying to{" "}
-                {participantMap.get(replyingTo.sender_id)?.display_name ||
-                  "message"}
-              </span>
             ) : (
               <span className="text-[#4A6B5D] font-medium">
                 Sharing a Prayer Request Card
@@ -1063,7 +1058,6 @@ export default function ChatThread({
           <button
             type="button"
             onClick={() => {
-              setReplyingTo(null);
               setComposeMode("text");
               setError(null);
               clearSelectedFile();
@@ -1096,15 +1090,13 @@ export default function ChatThread({
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder={
-            replyingTo
-              ? "Write a gentle reply..."
-              : composeMode === "prayer"
-                ? "How can they pray for you?"
-                : composeMode === "verse"
-                  ? "Optional thought on this verse..."
-                  : mode === "dm" || mode === "circle-dm"
-                    ? `Message ${title.split(" ")[0]}...`
-                    : "Share a reflection with the circle..."
+            composeMode === "prayer"
+              ? "How can they pray for you?"
+              : composeMode === "verse"
+                ? "Optional thought on this verse..."
+                : mode === "dm" || mode === "circle-dm"
+                  ? `Message ${title.split(" ")[0]}...`
+                  : "Share a reflection with the circle..."
           }
           className="flex-1 bg-white border border-[#E6E1D6] rounded-full px-4 py-2 text-[13px] text-[#1F2937] placeholder-[#6B7280] focus:outline-none focus:border-[#4A6B5D]"
         />
@@ -1125,6 +1117,28 @@ export default function ChatThread({
           )}
         </button>
       </form>
+
+      {/* Focused Thread Drawer */}
+      {activeThreadRoot && (
+        <ThreadDrawer
+          rootMessage={activeThreadRoot}
+          replies={repliesByParent.get(activeThreadRoot.id) || []}
+          mode={mode}
+          threadId={threadId}
+          currentUserId={currentUserId}
+          peerUserId={peerUserId}
+          participantMap={participantMap}
+          onClose={() => setActiveThreadRootId(null)}
+          onReplyInserted={(inserted) => {
+            setMessages((prev) =>
+              prev.some((m) => m.id === inserted.id) ? prev : [...prev, inserted]
+            );
+            onMessagesUpdated?.(inserted.created_at);
+          }}
+          onDeleteReply={handleDeleteMessage}
+          onSelectParticipant={onSelectParticipant}
+        />
+      )}
     </div>
   );
 }
