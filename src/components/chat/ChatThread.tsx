@@ -10,6 +10,7 @@ import {
   Heart,
   Loader2,
   MessageSquare,
+  MessagesSquare,
   Plus,
   Search,
   Send,
@@ -23,6 +24,9 @@ import { fetchChapter } from "@/lib/bible/bible-api";
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/lib/types/database";
 import ThreadDrawer from "@/components/chat/ThreadDrawer";
+import ThreadsIndexDrawer, {
+  type ThreadSummaryItem,
+} from "@/components/chat/ThreadsIndexDrawer";
 
 export interface ChatParticipant {
   user_id: string;
@@ -165,6 +169,7 @@ export default function ChatThread({
   const [activeThreadRootId, setActiveThreadRootId] = useState<string | null>(
     null
   );
+  const [showThreadsIndex, setShowThreadsIndex] = useState(false);
   const [prayingIds, setPrayingIds] = useState<Set<string>>(new Set());
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -454,6 +459,19 @@ export default function ChatThread({
       })
     : topLevelPosts;
 
+  const activeThreads: ThreadSummaryItem[] = topLevelPosts
+    .map((root) => {
+      const replies = repliesByParent.get(root.id) || [];
+      if (replies.length === 0) return null;
+      return {
+        root,
+        replyCount: replies.length,
+        lastReplyAt: replies[replies.length - 1].created_at,
+      };
+    })
+    .filter((t): t is ThreadSummaryItem => t !== null)
+    .sort((a, b) => b.lastReplyAt.localeCompare(a.lastReplyAt));
+
   const activeThreadRoot = activeThreadRootId
     ? messages.find((m) => m.id === activeThreadRootId) || null
     : null;
@@ -498,6 +516,22 @@ export default function ChatThread({
 
         <div className="flex items-center gap-1.5 shrink-0">
           {headerAction}
+          <button
+            type="button"
+            onClick={() => setShowThreadsIndex(true)}
+            aria-label="Open active threads"
+            title="Active Threads"
+            className="inline-flex items-center gap-1 px-2.5 h-8 rounded-xl bg-[#F4F1EA] hover:bg-[#EAE5DA] text-xs font-medium text-[#1F2937] transition-colors cursor-pointer"
+          >
+            <MessagesSquare className="w-3.5 h-3.5 text-[#4A6B5D]" />
+            <span>Threads</span>
+            {activeThreads.length > 0 && (
+              <span className="px-1.5 py-[0.5px] rounded-full bg-[#EBF1EE] text-[#4A6B5D] text-[10px] font-semibold">
+                {activeThreads.length}
+              </span>
+            )}
+          </button>
+
           <button
             type="button"
             onClick={() => {
@@ -1137,6 +1171,19 @@ export default function ChatThread({
           }}
           onDeleteReply={handleDeleteMessage}
           onSelectParticipant={onSelectParticipant}
+        />
+      )}
+
+      {/* Active Threads Index Drawer */}
+      {showThreadsIndex && (
+        <ThreadsIndexDrawer
+          threads={activeThreads}
+          participantMap={participantMap}
+          onSelectThread={(rootId) => {
+            setShowThreadsIndex(false);
+            setActiveThreadRootId(rootId);
+          }}
+          onClose={() => setShowThreadsIndex(false)}
         />
       )}
     </div>
