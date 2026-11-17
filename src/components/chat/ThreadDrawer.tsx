@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { BookOpen, Loader2, Send, Trash2, X } from "lucide-react";
+import { extractStorageObjectPath } from "@/lib/storage/paths";
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/lib/types/database";
 import {
@@ -44,8 +45,35 @@ export default function ThreadDrawer({
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [signedImageEntry, setSignedImageEntry] = useState<{
+    raw: string;
+    url: string;
+  } | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const raw = rootMessage.image_url;
+    const objectPath = extractStorageObjectPath(raw, "notebook-uploads");
+    if (!raw || !objectPath) return;
+
+    let cancelled = false;
+    const supabase = createClient();
+
+    supabase.storage
+      .from("notebook-uploads")
+      .createSignedUrl(objectPath, 3600)
+      .then(({ data }) => {
+        if (!cancelled && data?.signedUrl) {
+          setSignedImageEntry({ raw, url: data.signedUrl });
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rootMessage.image_url]);
 
   useEffect(() => {
     setTimeout(() => {
@@ -168,14 +196,21 @@ export default function ThreadDrawer({
             </div>
 
             {rootMessage.image_url && (
-              <div className="rounded-xl overflow-hidden border border-[#E6E1D6] bg-white max-h-24">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={rootMessage.image_url}
-                  alt="Notebook attachment"
-                  className="w-full h-24 object-cover"
-                />
-              </div>
+              signedImageEntry?.raw === rootMessage.image_url ? (
+                <div className="rounded-xl overflow-hidden border border-[#E6E1D6] bg-white max-h-24">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={signedImageEntry.url}
+                    alt="Notebook attachment"
+                    className="w-full h-24 object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="h-20 rounded-xl border border-[#E6E1D6] bg-white flex items-center justify-center text-[11px] text-[#6B7280]">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                  Loading image...
+                </div>
+              )
             )}
 
             {rootScriptureRef && (

@@ -91,9 +91,31 @@ export async function POST(request: Request) {
 
   const sent = results.filter((r) => r.status === "fulfilled").length;
 
+  const staleEndpoints: string[] = [];
+  results.forEach((result, idx) => {
+    if (result.status === "rejected") {
+      const reason = result.reason as { statusCode?: number } | null;
+      if (reason && (reason.statusCode === 410 || reason.statusCode === 404)) {
+        staleEndpoints.push(subs[idx].endpoint);
+      }
+    }
+  });
+
+  if (staleEndpoints.length > 0) {
+    try {
+      await supabase.rpc("prune_stale_push_subscriptions", {
+        p_recipient_id: recipientId,
+        p_endpoints: staleEndpoints,
+      });
+    } catch {
+      // Best-effort pruning; do not fail ring notification response
+    }
+  }
+
   return Response.json({
     sent,
     attempted: subs.length,
+    pruned: staleEndpoints.length,
     configured: true,
   });
 }

@@ -14,21 +14,36 @@ export type Database = {
           id: string;
           display_name: string;
           avatar_url: string | null;
-          friend_code: string | null;
           created_at: string;
         };
         Insert: {
           id: string;
           display_name: string;
           avatar_url?: string | null;
-          friend_code?: string | null;
           created_at?: string;
         };
         Update: {
           id?: string;
           display_name?: string;
           avatar_url?: string | null;
-          friend_code?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      user_friend_codes: {
+        Row: {
+          user_id: string;
+          friend_code: string;
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          friend_code?: string;
+          created_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          friend_code?: string;
           created_at?: string;
         };
         Relationships: [];
@@ -406,9 +421,17 @@ export type Database = {
         Args: { code: string };
         Returns: { circle_id: string; name: string; already_member?: boolean };
       };
+      get_my_friend_code: {
+        Args: Record<PropertyKey, never>;
+        Returns: string;
+      };
       get_ring_push_subscriptions: {
         Args: { p_circle_id: string | null; p_recipient_id: string };
         Returns: { endpoint: string; p256dh: string; auth: string }[];
+      };
+      prune_stale_push_subscriptions: {
+        Args: { p_recipient_id: string; p_endpoints: string[] };
+        Returns: number;
       };
     };
     Enums: {

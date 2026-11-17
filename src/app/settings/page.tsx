@@ -12,6 +12,7 @@ import {
   Sun,
 } from "lucide-react";
 import Navbar, { getInitials } from "@/components/ui/Navbar";
+import { extractStorageObjectPath } from "@/lib/storage/paths";
 import { createClient } from "@/lib/supabase/client";
 import {
   arrayBufferToBase64,
@@ -207,6 +208,7 @@ export default function SettingsPage() {
 
     setUploadingAvatar(true);
     setFeedback(null);
+    const previousAvatarUrl = avatarUrl;
     const supabase = createClient();
 
     try {
@@ -233,6 +235,15 @@ export default function SettingsPage() {
       );
 
       if (updateError) throw updateError;
+
+      const oldPath = extractStorageObjectPath(previousAvatarUrl, "avatars");
+      if (oldPath && oldPath !== filePath) {
+        try {
+          await supabase.storage.from("avatars").remove([oldPath]);
+        } catch {
+          // Best-effort cleanup of replaced avatar
+        }
+      }
 
       setAvatarUrl(publicUrl);
       setFeedback({ type: "success", text: "Profile photo updated." });

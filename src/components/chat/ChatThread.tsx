@@ -20,6 +20,7 @@ import {
 import { getInitials } from "@/components/ui/Navbar";
 import { BIBLE_BOOKS } from "@/lib/plans/reading-plans";
 import { fetchChapter } from "@/lib/bible/bible-api";
+import { extractStorageObjectPath } from "@/lib/storage/paths";
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/lib/types/database";
 import ThreadDrawer from "@/components/chat/ThreadDrawer";
@@ -194,9 +195,13 @@ export default function ChatThread({
   const [prayingIds, setPrayingIds] = useState<Set<string>>(new Set());
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [signedImageUrls, setSignedImageUrls] = useState<
+    Record<string, string>
+  >({});
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const resolvedImageKeysRef = useRef<Set<string>>(new Set());
   const participantMap = new Map(participants.map((p) => [p.user_id, p]));
 
   const scrollToBottom = useCallback(() => {
@@ -245,6 +250,64 @@ export default function ChatThread({
     setLoading(true);
     loadMessages();
   }, [loadMessages]);
+
+  useEffect(() => {
+    const rawUrls = Array.from(
+      new Set(
+        messages
+          .map((m) => m.image_url)
+          .filter(
+            (u): u is string =>
+              typeof u === "string" &&
+              u.length > 0 &&
+              !resolvedImageKeysRef.current.has(u)
+          )
+      )
+    );
+    if (rawUrls.length === 0) return;
+
+    const pathToRaw = new Map<string, string[]>();
+    for (const raw of rawUrls) {
+      const path = extractStorageObjectPath(raw, "notebook-uploads");
+      if (path) {
+        const list = pathToRaw.get(path) || [];
+        list.push(raw);
+        pathToRaw.set(path, list);
+      }
+    }
+    const uniquePaths = Array.from(pathToRaw.keys());
+    if (uniquePaths.length === 0) return;
+
+    let cancelled = false;
+    const supabase = createClient();
+
+    supabase.storage
+      .from("notebook-uploads")
+      .createSignedUrls(uniquePaths, 3600)
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        const updates: Record<string, string> = {};
+        for (const item of data) {
+          if (item.path) {
+            const raws = pathToRaw.get(item.path) || [];
+            for (const raw of raws) {
+              resolvedImageKeysRef.current.add(raw);
+              if (item.signedUrl) {
+                updates[raw] = item.signedUrl;
+              }
+            }
+          }
+        }
+        if (Object.keys(updates).length > 0) {
+          setSignedImageUrls((prev) => ({ ...prev, ...updates }));
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [messages]);
 
   // Live Supabase Realtime Subscription on messages
   useEffect(() => {
@@ -374,11 +437,7 @@ export default function ChatThread({
 
         if (uploadError) throw uploadError;
 
-        const { data: publicUrlData } = supabase.storage
-          .from("notebook-uploads")
-          .getPublicUrl(filePath);
-
-        uploadedImageUrl = publicUrlData.publicUrl;
+        uploadedImageUrl = filePath;
       }
 
       let finalContent =
@@ -454,9 +513,31 @@ export default function ChatThread({
   }
 
   async function handleDeleteMessage(id: string) {
+    const target = messages.find((m) => m.id === id);
     const supabase = createClient();
-    await supabase.from("messages").delete().eq("id", id);
+    const { error: deleteError } = await supabase
+      .from("messages")
+      .delete()
+      .eq("id", id);
+
+    if (deleteError) {
+      setError(deleteError.message);
+      return;
+    }
+
     setMessages((prev) => prev.filter((m) => m.id !== id));
+
+    const objectPath = extractStorageObjectPath(
+      target?.image_url,
+      "notebook-uploads"
+    );
+    if (objectPath) {
+      try {
+        await supabase.storage.from("notebook-uploads").remove([objectPath]);
+      } catch {
+        // Best-effort storage cleanup; DB deletion already succeeded
+      }
+    }
   }
 
   function togglePrayer(msgId: string) {
@@ -826,14 +907,21 @@ export default function ChatThread({
                           {formatChatTime(msg.created_at)}
                         </span>
                       </div>
-                      <div className="mb-2 rounded-xl overflow-hidden border border-[#E6E1D6] bg-[#FAF9F6]">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={msg.image_url}
-                          alt="Notebook reflection"
-                          className="w-full max-h-64 object-cover"
-                        />
-                      </div>
+                      {signedImageUrls[msg.image_url] ? (
+                        <div className="mb-2 rounded-xl overflow-hidden border border-[#E6E1D6] bg-[#FAF9F6]">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={signedImageUrls[msg.image_url]}
+                            alt="Notebook reflection"
+                            className="w-full max-h-64 object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="mb-2 h-32 rounded-xl border border-[#E6E1D6] bg-[#FAF9F6] flex items-center justify-center text-[11px] text-[#6B7280]">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                          Loading image...
+                        </div>
+                      )}
                       <p className="text-[13px] leading-relaxed text-[#1F2937] whitespace-pre-wrap">
                         {displayContent}
                       </p>

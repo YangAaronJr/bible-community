@@ -107,13 +107,9 @@ export default function SocialHub() {
     }
     setUserId(user.id);
 
-    const [{ data: myProfile }, { data: friendshipRows }, { data: memberships }] =
+    const [{ data: myFriendCodeValue }, { data: friendshipRows }, { data: memberships }] =
       await Promise.all([
-        supabase
-          .from("profiles")
-          .select("friend_code")
-          .eq("id", user.id)
-          .maybeSingle(),
+        supabase.rpc("get_my_friend_code"),
         supabase
           .from("friendships")
           .select("id, requester_id, addressee_id, status")
@@ -125,7 +121,7 @@ export default function SocialHub() {
           .eq("user_id", user.id),
       ]);
 
-    setMyFriendCode(myProfile?.friend_code || null);
+    setMyFriendCode(myFriendCodeValue || null);
 
     // Collect all friend user IDs to hydrate profiles
     const friendRows = friendshipRows || [];

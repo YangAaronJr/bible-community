@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { getInitials } from "@/components/ui/Navbar";
 import { READING_PLAN_PRESETS } from "@/lib/plans/reading-plans";
+import { extractStorageObjectPath } from "@/lib/storage/paths";
 import { createClient } from "@/lib/supabase/client";
 
 interface CircleSettingsData {
@@ -121,6 +122,7 @@ export default function CircleSettingsView({
 
     setUploadingAvatar(true);
     setFeedback(null);
+    const previousAvatarUrl = avatarUrl;
     const supabase = createClient();
 
     try {
@@ -143,6 +145,18 @@ export default function CircleSettingsView({
         .eq("id", circle.id);
 
       if (updateError) throw updateError;
+
+      const oldPath = extractStorageObjectPath(
+        previousAvatarUrl,
+        "circle-avatars"
+      );
+      if (oldPath && oldPath !== filePath) {
+        try {
+          await supabase.storage.from("circle-avatars").remove([oldPath]);
+        } catch {
+          // Best-effort cleanup of replaced circle avatar
+        }
+      }
 
       setAvatarUrl(publicUrl);
       setCircle((prev) => (prev ? { ...prev, avatar_url: publicUrl } : prev));
