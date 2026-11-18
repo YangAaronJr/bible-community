@@ -157,7 +157,7 @@ interface HelloAoChapterPayload {
   chapter?: { number?: number; content?: HelloAoVerseItem[] };
 }
 
-function extractVerseText(content: unknown[]): string {
+export function extractVerseText(content: unknown[]): string {
   const parts: string[] = [];
   for (const part of content) {
     if (typeof part === "string") {
@@ -173,6 +173,27 @@ function extractVerseText(content: unknown[]): string {
 }
 
 const memoryCache = new Map<string, BibleChapterResponse>();
+
+function buildChapterCacheKey(
+  translationId: BibleTranslationId,
+  book: string,
+  chapter: number
+): string {
+  return `bible_v3_${translationId.toLowerCase()}_${book.toLowerCase()}_${chapter}`;
+}
+
+function getFallbackTranslationMeta(
+  fallbackId: BibleTranslationMeta["bibleApiFallbackId"]
+): BibleTranslationMeta {
+  const targetId: BibleTranslationId = fallbackId === "kjv" ? "KJV" : "WEB";
+  return (
+    BIBLE_TRANSLATIONS.find((t) => t.id === targetId) || BIBLE_TRANSLATIONS[1]
+  );
+}
+
+export function clearChapterCache(): void {
+  memoryCache.clear();
+}
 
 async function fetchFromHelloAo(
   book: string,
@@ -232,7 +253,7 @@ async function fetchFromBibleApiFallback(
   book: string,
   chapter: number,
   meta: BibleTranslationMeta
-): Promise<BibleChapterResponse> {
+): Promise<{ data: BibleChapterResponse; servedMeta: BibleTranslationMeta }> {
   const singleChapterMax = SINGLE_CHAPTER_VERSE_COUNTS[book];
   const queryRef = singleChapterMax
     ? `${book} 1:1-${singleChapterMax}`
@@ -254,12 +275,21 @@ async function fetchFromBibleApiFallback(
     throw new Error(`Unexpected response format for ${book} ${chapter}.`);
   }
 
-  data.verses = data.verses.map((v) => ({
+  const servedMeta = getFallbackTranslationMeta(meta.bibleApiFallbackId);
+  const verses = data.verses.map((v) => ({
     ...v,
     text: v.text.replace(/\s+/g, " ").trim(),
   }));
 
-  return data;
+  return {
+    data: {
+      ...data,
+      verses,
+      translation_id: servedMeta.id,
+      translation_name: servedMeta.name,
+    },
+    servedMeta,
+  };
 }
 
 export async function fetchChapter(
@@ -270,7 +300,7 @@ export async function fetchChapter(
   const meta =
     BIBLE_TRANSLATIONS.find((t) => t.id === translation) ||
     BIBLE_TRANSLATIONS[0];
-  const cacheKey = `bible_v3_${meta.id.toLowerCase()}_${book.toLowerCase()}_${chapter}`;
+  const cacheKey = buildChapterCacheKey(meta.id, book, chapter);
 
   if (memoryCache.has(cacheKey)) {
     return memoryCache.get(cacheKey)!;
@@ -281,7 +311,15 @@ export async function fetchChapter(
       const cached = sessionStorage.getItem(cacheKey);
       if (cached) {
         const parsed = JSON.parse(cached) as BibleChapterResponse;
-        if (parsed && Array.isArray(parsed.verses) && parsed.verses.length > 0) {
+        const matchesTranslation =
+          !parsed?.translation_id ||
+          parsed.translation_id.toUpperCase() === meta.id;
+        if (
+          parsed &&
+          matchesTranslation &&
+          Array.isArray(parsed.verses) &&
+          parsed.verses.length > 0
+        ) {
           memoryCache.set(cacheKey, parsed);
           return parsed;
         }
@@ -292,17 +330,22 @@ export async function fetchChapter(
   }
 
   let data: BibleChapterResponse;
+  let servedCacheKey = cacheKey;
   try {
     data = await fetchFromHelloAo(book, chapter, meta);
   } catch {
-    data = await fetchFromBibleApiFallback(book, chapter, meta);
+    const fallback = await fetchFromBibleApiFallback(book, chapter, meta);
+    data = fallback.data;
+    // Cache fallback under the translation actually served (e.g. WEB) so
+    // transient HelloAO outages never poison BSB/ASV cache keys.
+    servedCacheKey = buildChapterCacheKey(fallback.servedMeta.id, book, chapter);
   }
 
-  memoryCache.set(cacheKey, data);
+  memoryCache.set(servedCacheKey, data);
 
   if (typeof window !== "undefined") {
     try {
-      sessionStorage.setItem(cacheKey, JSON.stringify(data));
+      sessionStorage.setItem(servedCacheKey, JSON.stringify(data));
     } catch {
       // Ignore quota errors
     }
