@@ -203,6 +203,7 @@ export type Database = {
           sender_id: string;
           recipient_id: string | null;
           parent_id: string | null;
+          prayer_request_id: string | null;
           content: string;
           image_url: string | null;
           ocr_text: string | null;
@@ -215,6 +216,7 @@ export type Database = {
           sender_id: string;
           recipient_id?: string | null;
           parent_id?: string | null;
+          prayer_request_id?: string | null;
           content: string;
           image_url?: string | null;
           ocr_text?: string | null;
@@ -227,10 +229,50 @@ export type Database = {
           sender_id?: string;
           recipient_id?: string | null;
           parent_id?: string | null;
+          prayer_request_id?: string | null;
           content?: string;
           image_url?: string | null;
           ocr_text?: string | null;
           created_at?: string;
+        };
+        Relationships: [];
+      };
+      message_prayer_responses: {
+        Row: {
+          message_id: string;
+          user_id: string;
+          created_at: string;
+        };
+        Insert: {
+          message_id: string;
+          user_id: string;
+          created_at?: string;
+        };
+        Update: {
+          message_id?: string;
+          user_id?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      user_read_states: {
+        Row: {
+          user_id: string;
+          scope_type: "circle" | "dm";
+          scope_id: string;
+          last_read_at: string;
+        };
+        Insert: {
+          user_id: string;
+          scope_type: "circle" | "dm";
+          scope_id: string;
+          last_read_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          scope_type?: "circle" | "dm";
+          scope_id?: string;
+          last_read_at?: string;
         };
         Relationships: [];
       };
