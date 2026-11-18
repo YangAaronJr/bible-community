@@ -12,6 +12,7 @@ interface CircleFeedProps {
   currentUserId: string;
   onBack?: () => void;
   onSelectMember?: (member: CircleMemberProfile) => void;
+  onMessagesUpdated?: (latestCreatedAt: string | null) => void;
 }
 
 export default function CircleFeed({
@@ -20,6 +21,7 @@ export default function CircleFeed({
   currentUserId,
   onBack,
   onSelectMember,
+  onMessagesUpdated,
 }: CircleFeedProps) {
   return (
     <ChatThread
@@ -34,6 +36,7 @@ export default function CircleFeed({
         const match = members.find((m) => m.user_id === participant.user_id);
         if (match) onSelectMember?.(match);
       }}
+      onMessagesUpdated={onMessagesUpdated}
     />
   );
 }

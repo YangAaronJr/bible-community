@@ -90,10 +90,18 @@ function formatPassage(r: RecentReflection): string {
     : `${r.book} ${r.chapter}:${r.verse_start}`;
 }
 
-export default function MemberProfileView({ memberId }: { memberId: string }) {
+export default function MemberProfileView({
+  memberId,
+  initialUserId,
+}: {
+  memberId: string;
+  initialUserId?: string;
+}) {
   const router = useRouter();
 
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(
+    initialUserId ?? null
+  );
   const [profile, setProfile] = useState<MemberProfile | null>(null);
   const [friendship, setFriendship] = useState<FriendshipRow | null>(null);
   const [sharedCircles, setSharedCircles] = useState<SharedCircle[]>([]);
@@ -113,15 +121,19 @@ export default function MemberProfileView({ memberId }: { memberId: string }) {
 
   const loadMemberProfile = useCallback(async () => {
     const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    let uid = initialUserId ?? null;
+    if (!uid) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      uid = user?.id ?? null;
+    }
 
-    if (!user) {
+    if (!uid) {
       setLoading(false);
       return;
     }
-    setCurrentUserId(user.id);
+    setCurrentUserId(uid);
 
     const since72h = new Date(
       Date.now() - 72 * 60 * 60 * 1000
@@ -134,19 +146,18 @@ export default function MemberProfileView({ memberId }: { memberId: string }) {
       { data: sharedMemberRows },
       { data: activePrayers },
       { data: recentNotes },
-      { data: recentRings },
     ] = await Promise.all([
       supabase
         .from("profiles")
         .select("id, display_name, avatar_url")
         .eq("id", memberId)
         .maybeSingle(),
-      user.id !== memberId
+      uid !== memberId
         ? supabase
             .from("friendships")
             .select("id, requester_id, addressee_id, status")
             .or(
-              `and(requester_id.eq.${user.id},addressee_id.eq.${memberId}),and(requester_id.eq.${memberId},addressee_id.eq.${user.id})`
+              `and(requester_id.eq.${uid},addressee_id.eq.${memberId}),and(requester_id.eq.${memberId},addressee_id.eq.${uid})`
             )
             .maybeSingle()
         : Promise.resolve({ data: null }),
@@ -168,20 +179,33 @@ export default function MemberProfileView({ memberId }: { memberId: string }) {
         .eq("user_id", memberId)
         .gte("created_at", since72h)
         .order("created_at", { ascending: false }),
-      user.id !== memberId
-        ? supabase
-            .from("rings")
-            .select("id")
-            .eq("sender_id", user.id)
-            .eq("recipient_id", memberId)
-            .gte("created_at", since10m)
-            .limit(1)
-        : Promise.resolve({ data: [] }),
     ]);
+
+    const isAcceptedFriend = friendshipRow?.status === "accepted";
+    const ringCircleContext = isAcceptedFriend
+      ? null
+      : (sharedMemberRows?.[0]?.circle_id ?? null);
+
+    let hasRecentRing = false;
+    if (uid !== memberId && (isAcceptedFriend || ringCircleContext)) {
+      const ringQuery = supabase
+        .from("rings")
+        .select("id")
+        .eq("sender_id", uid)
+        .eq("recipient_id", memberId)
+        .gte("created_at", since10m)
+        .limit(1);
+
+      const { data: recentRings } = ringCircleContext
+        ? await ringQuery.eq("circle_id", ringCircleContext)
+        : await ringQuery.is("circle_id", null);
+
+      hasRecentRing = Boolean(recentRings && recentRings.length > 0);
+    }
 
     setProfile(memberProfile || null);
     setFriendship(friendshipRow || null);
-    setIsRung((recentRings || []).length > 0);
+    setIsRung(hasRecentRing);
 
     // Hydrate shared circle names (RLS on circle_members scopes to shared circles)
     const circleIds = Array.from(
@@ -232,7 +256,7 @@ export default function MemberProfileView({ memberId }: { memberId: string }) {
             circle_name: circleNameMap.get(p.circle_id) || "Shared Circle",
             content: p.content,
             created_at: p.created_at,
-            isPraying: set.has(user.id),
+            isPraying: set.has(uid),
             prayingCount: set.size,
           };
         })
@@ -252,7 +276,7 @@ export default function MemberProfileView({ memberId }: { memberId: string }) {
     );
 
     setLoading(false);
-  }, [memberId]);
+  }, [memberId, initialUserId]);
 
   useEffect(() => {
     loadMemberProfile();

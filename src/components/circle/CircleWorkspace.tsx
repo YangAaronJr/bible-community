@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -55,27 +55,51 @@ function renderAvatar(
   );
 }
 
-function markCircleChatRead(circleId: string, latestIso?: string | null) {
-  if (typeof window === "undefined") return;
+async function syncCircleReadState(
+  userId: string,
+  circleId: string,
+  options: { markChat?: boolean; latestIso?: string | null } = {}
+) {
+  const nowMs = Date.now();
+  const latestMs = options.latestIso ? new Date(options.latestIso).getTime() : 0;
+  const stamp = new Date(Math.max(nowMs, latestMs)).toISOString();
+
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(`circle_room_last_read_${circleId}`, stamp);
+      if (options.markChat) {
+        localStorage.setItem(`circle_chat_last_read_${circleId}`, stamp);
+      }
+    } catch {
+      // Ignore storage write errors
+    }
+  }
+
   try {
-    const nowMs = Date.now();
-    const latestMs = latestIso ? new Date(latestIso).getTime() : 0;
-    localStorage.setItem(
-      `circle_chat_last_read_${circleId}`,
-      new Date(Math.max(nowMs, latestMs)).toISOString()
+    const supabase = createClient();
+    await supabase.from("user_read_states").upsert(
+      {
+        user_id: userId,
+        scope_type: "circle",
+        scope_id: circleId,
+        last_read_at: stamp,
+      },
+      { onConflict: "user_id,scope_type,scope_id" }
     );
   } catch {
-    // Ignore storage write errors
+    // Best-effort DB sync; localStorage fallback already updated
   }
 }
 
 export default function CircleWorkspace({
   circleId,
+  initialUserId,
 }: {
   circleId?: string;
+  initialUserId?: string;
 }) {
   const router = useRouter();
-  const [userId, setUserId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(initialUserId ?? null);
   const [activeCircle, setActiveCircle] = useState<CircleInfo | null>(null);
   const [members, setMembers] = useState<CircleMemberProfile[]>([]);
   const [sharedTodayIds, setSharedTodayIds] = useState<Set<string>>(new Set());
@@ -87,22 +111,28 @@ export default function CircleWorkspace({
   const [subView, setSubView] = useState<CircleSubView>("members");
   const [menuOpen, setMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const memberIdsRef = useRef<Set<string>>(new Set());
+  const latestGroupMsgAtRef = useRef<string | null>(null);
 
   const loadCircleRoom = useCallback(async () => {
     const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
+    let uid = initialUserId ?? null;
+    if (!uid) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      uid = user?.id ?? null;
+    }
+    if (!uid) {
       setLoading(false);
       return;
     }
-    setUserId(user.id);
+    setUserId(uid);
 
     const { data: memberships } = await supabase
       .from("circle_members")
       .select("circle_id")
-      .eq("user_id", user.id);
+      .eq("user_id", uid);
 
     const circleIds = (memberships || []).map((m) => m.circle_id);
     if (circleIds.length === 0) {
@@ -151,6 +181,7 @@ export default function CircleWorkspace({
       { data: notesToday },
       { data: latestGroupMsg },
       { data: recentRings },
+      { data: circleReadState },
     ] = await Promise.all([
       supabase
         .from("circle_members")
@@ -167,18 +198,29 @@ export default function CircleWorkspace({
         .select("sender_id, created_at")
         .eq("circle_id", circleRow.id)
         .is("recipient_id", null)
-        .neq("sender_id", user.id)
+        .neq("sender_id", uid)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle(),
       supabase
         .from("rings")
-        .select("sender_id, recipient_id, created_at")
-        .eq("circle_id", circleRow.id)
-        .gte("created_at", since15m),
+        .select("sender_id, recipient_id, circle_id, created_at")
+        .eq("recipient_id", uid)
+        .gte("created_at", since15m)
+        .or(`circle_id.eq.${circleRow.id},circle_id.is.null`),
+      supabase
+        .from("user_read_states")
+        .select("last_read_at")
+        .eq("user_id", uid)
+        .eq("scope_type", "circle")
+        .eq("scope_id", circleRow.id)
+        .maybeSingle(),
     ]);
 
     const memberIds = (memberRows || []).map((m) => m.user_id);
+    const memberIdSet = new Set(memberIds);
+    memberIdsRef.current = memberIdSet;
+
     const { data: profiles } =
       memberIds.length > 0
         ? await supabase
@@ -207,7 +249,10 @@ export default function CircleWorkspace({
 
     const haloMap = new Map<string, number>();
     for (const r of recentRings || []) {
-      if (r.recipient_id === user.id) {
+      const belongsToCircle =
+        r.circle_id === circleRow.id ||
+        (r.circle_id === null && memberIdSet.has(r.sender_id));
+      if (r.recipient_id === uid && belongsToCircle) {
         const ts = new Date(r.created_at).getTime();
         if (now - ts < RING_HALO_MS && ts > (haloMap.get(r.sender_id) ?? 0)) {
           haloMap.set(r.sender_id, ts);
@@ -216,19 +261,33 @@ export default function CircleWorkspace({
     }
     setRingHaloMap(haloMap);
 
-    if (latestGroupMsg && typeof window !== "undefined") {
-      const lastRead = localStorage.getItem(
-        `circle_chat_last_read_${circleRow.id}`
+    latestGroupMsgAtRef.current = latestGroupMsg?.created_at ?? null;
+    if (latestGroupMsg) {
+      const localChatLastRead =
+        typeof window !== "undefined"
+          ? localStorage.getItem(`circle_chat_last_read_${circleRow.id}`)
+          : null;
+      const dbMs = circleReadState?.last_read_at
+        ? new Date(circleReadState.last_read_at).getTime()
+        : 0;
+      const localMs = localChatLastRead
+        ? new Date(localChatLastRead).getTime()
+        : 0;
+      const effectiveLastReadMs = Math.max(
+        Number.isFinite(dbMs) ? dbMs : 0,
+        Number.isFinite(localMs) ? localMs : 0
       );
       setHasUnreadGroupChat(
-        !lastRead || new Date(latestGroupMsg.created_at) > new Date(lastRead)
+        effectiveLastReadMs === 0 ||
+          new Date(latestGroupMsg.created_at).getTime() > effectiveLastReadMs
       );
     } else {
       setHasUnreadGroupChat(false);
     }
 
+    await syncCircleReadState(uid, circleRow.id);
     setLoading(false);
-  }, [circleId]);
+  }, [circleId, initialUserId]);
 
   useEffect(() => {
     loadCircleRoom();
@@ -254,12 +313,12 @@ export default function CircleWorkspace({
     return () => clearTimeout(timer);
   }, [ringHaloMap]);
 
-  // Realtime updates for unread Group Chat dot & Ring halos
+  // Realtime updates for unread Group Chat dot, read states & Ring halos
   useEffect(() => {
     if (!activeCircle || !userId) return;
     const supabase = createClient();
     const channel = supabase
-      .channel(`circle-room-${activeCircle.id}`)
+      .channel(`circle-room-${activeCircle.id}-${userId}`)
       .on(
         "postgres_changes",
         {
@@ -275,8 +334,12 @@ export default function CircleWorkspace({
             created_at: string;
           };
           if (msg.recipient_id !== null || msg.sender_id === userId) return;
+          latestGroupMsgAtRef.current = msg.created_at;
           if (subView === "chat") {
-            markCircleChatRead(activeCircle.id, msg.created_at);
+            void syncCircleReadState(userId, activeCircle.id, {
+              markChat: true,
+              latestIso: msg.created_at,
+            });
             setHasUnreadGroupChat(false);
           } else {
             setHasUnreadGroupChat(true);
@@ -289,19 +352,63 @@ export default function CircleWorkspace({
           event: "INSERT",
           schema: "public",
           table: "rings",
-          filter: `circle_id=eq.${activeCircle.id}`,
+          filter: `recipient_id=eq.${userId}`,
         },
         (payload) => {
           const ring = payload.new as {
             sender_id: string;
             recipient_id: string;
+            circle_id?: string | null;
             created_at?: string;
           };
-          if (ring.recipient_id === userId) {
+          const belongsToCircle =
+            ring.circle_id === activeCircle.id ||
+            (ring.circle_id === null &&
+              memberIdsRef.current.has(ring.sender_id));
+          if (ring.recipient_id === userId && belongsToCircle) {
             const ts = ring.created_at
               ? new Date(ring.created_at).getTime()
               : Date.now();
             setRingHaloMap((prev) => new Map(prev).set(ring.sender_id, ts));
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "user_read_states",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const row = payload.new as {
+            scope_type?: string;
+            scope_id?: string;
+            last_read_at?: string;
+          };
+          if (
+            row.scope_type === "circle" &&
+            row.scope_id === activeCircle.id &&
+            row.last_read_at
+          ) {
+            if (typeof window !== "undefined") {
+              try {
+                localStorage.setItem(
+                  `circle_room_last_read_${activeCircle.id}`,
+                  row.last_read_at
+                );
+              } catch {
+                // Ignore storage write errors
+              }
+            }
+            if (
+              !latestGroupMsgAtRef.current ||
+              new Date(row.last_read_at).getTime() >=
+                new Date(latestGroupMsgAtRef.current).getTime()
+            ) {
+              setHasUnreadGroupChat(false);
+            }
           }
         }
       )
@@ -315,9 +422,20 @@ export default function CircleWorkspace({
   function openSubView(next: CircleSubView) {
     setSubView(next);
     setMenuOpen(false);
-    if (next === "chat" && activeCircle) {
-      markCircleChatRead(activeCircle.id);
-      setHasUnreadGroupChat(false);
+    if (
+      activeCircle &&
+      userId &&
+      (next === "members" ||
+        next === "chat" ||
+        next === "prayer" ||
+        next === "docs")
+    ) {
+      void syncCircleReadState(userId, activeCircle.id, {
+        markChat: next === "chat",
+      });
+      if (next === "chat") {
+        setHasUnreadGroupChat(false);
+      }
     }
   }
 
@@ -502,6 +620,16 @@ export default function CircleWorkspace({
           currentUserId={userId}
           onBack={() => openSubView("members")}
           onSelectMember={(m) => router.push(`/members/${m.user_id}`)}
+          onMessagesUpdated={(latestCreatedAt) => {
+            if (latestCreatedAt) {
+              latestGroupMsgAtRef.current = latestCreatedAt;
+            }
+            void syncCircleReadState(userId, activeCircle.id, {
+              markChat: true,
+              latestIso: latestCreatedAt,
+            });
+            setHasUnreadGroupChat(false);
+          }}
         />
       ) : subView === "prayer" && userId ? (
         <CirclePrayerSection
@@ -520,6 +648,7 @@ export default function CircleWorkspace({
       ) : subView === "settings" ? (
         <CircleSettingsView
           circleId={activeCircle.id}
+          initialUserId={userId ?? initialUserId}
           onBack={() => openSubView("members")}
           onCircleUpdated={loadCircleRoom}
         />

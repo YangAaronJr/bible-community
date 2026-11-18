@@ -7,46 +7,71 @@ import { ChevronLeft, Loader2 } from "lucide-react";
 import ChatThread, { type ChatParticipant } from "@/components/chat/ChatThread";
 import { createClient } from "@/lib/supabase/client";
 
-function markDmRead(friendshipId: string, latestIso?: string | null) {
-  if (typeof window === "undefined") return;
+async function markDmRead(
+  userId: string,
+  friendshipId: string,
+  latestIso?: string | null
+) {
+  const nowMs = Date.now();
+  const latestMs = latestIso ? new Date(latestIso).getTime() : 0;
+  const stamp = new Date(Math.max(nowMs, latestMs)).toISOString();
+
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(`dm_last_read_${friendshipId}`, stamp);
+    } catch {
+      // Ignore storage write errors
+    }
+  }
+
   try {
-    const nowMs = Date.now();
-    const latestMs = latestIso ? new Date(latestIso).getTime() : 0;
-    const stamp = new Date(Math.max(nowMs, latestMs)).toISOString();
-    localStorage.setItem(`dm_last_read_${friendshipId}`, stamp);
+    const supabase = createClient();
+    await supabase.from("user_read_states").upsert(
+      {
+        user_id: userId,
+        scope_type: "dm",
+        scope_id: friendshipId,
+        last_read_at: stamp,
+      },
+      { onConflict: "user_id,scope_type,scope_id" }
+    );
   } catch {
-    // Ignore storage write errors
+    // Best-effort DB sync; localStorage fallback already updated
   }
 }
 
 export default function FriendDmRoom({
   friendshipId,
+  initialUserId,
 }: {
   friendshipId: string;
+  initialUserId?: string;
 }) {
   const router = useRouter();
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(
+    initialUserId ?? null
+  );
   const [peer, setPeer] = useState<ChatParticipant | null>(null);
   const [participants, setParticipants] = useState<ChatParticipant[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFoundReason, setNotFoundReason] = useState<string | null>(null);
 
   useEffect(() => {
-    markDmRead(friendshipId);
-  }, [friendshipId]);
-
-  useEffect(() => {
     async function loadDmContext() {
       const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      let uid = initialUserId ?? null;
+      if (!uid) {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        uid = user?.id ?? null;
+      }
 
-      if (!user) {
+      if (!uid) {
         setLoading(false);
         return;
       }
-      setCurrentUserId(user.id);
+      setCurrentUserId(uid);
 
       const { data: friendship } = await supabase
         .from("friendships")
@@ -69,17 +94,17 @@ export default function FriendDmRoom({
       }
 
       const peerId =
-        friendship.requester_id === user.id
+        friendship.requester_id === uid
           ? friendship.addressee_id
           : friendship.requester_id;
 
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, display_name, avatar_url")
-        .in("id", [user.id, peerId]);
+        .in("id", [uid, peerId]);
 
       const profMap = new Map((profiles || []).map((p) => [p.id, p]));
-      const meProf = profMap.get(user.id);
+      const meProf = profMap.get(uid);
       const peerProf = profMap.get(peerId);
 
       const peerParticipant: ChatParticipant = {
@@ -88,25 +113,26 @@ export default function FriendDmRoom({
         avatar_url: peerProf?.avatar_url || null,
       };
       const meParticipant: ChatParticipant = {
-        user_id: user.id,
+        user_id: uid,
         display_name: meProf?.display_name || "You",
         avatar_url: meProf?.avatar_url || null,
       };
 
       setPeer(peerParticipant);
       setParticipants([meParticipant, peerParticipant]);
-      markDmRead(friendshipId);
+      await markDmRead(uid, friendshipId);
       setLoading(false);
     }
 
     loadDmContext();
-  }, [friendshipId]);
+  }, [friendshipId, initialUserId]);
 
   const handleMessagesUpdated = useCallback(
     (latestCreatedAt: string | null) => {
-      markDmRead(friendshipId, latestCreatedAt);
+      if (!currentUserId) return;
+      void markDmRead(currentUserId, friendshipId, latestCreatedAt);
     },
-    [friendshipId]
+    [currentUserId, friendshipId]
   );
 
   if (loading) {

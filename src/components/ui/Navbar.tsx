@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -13,11 +13,32 @@ export function getInitials(name: string | null | undefined): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-export default function Navbar() {
+function getLatestReadMs(
+  dbIso: string | undefined,
+  localIso: string | null
+): number {
+  const dbMs = dbIso ? new Date(dbIso).getTime() : 0;
+  const localMs = localIso ? new Date(localIso).getTime() : 0;
+  return Math.max(
+    Number.isFinite(dbMs) ? dbMs : 0,
+    Number.isFinite(localMs) ? localMs : 0
+  );
+}
+
+export default function Navbar({
+  initialUserId,
+}: {
+  initialUserId?: string;
+} = {}) {
   const pathname = usePathname();
+  const [resolvedUserId, setResolvedUserId] = useState<string | null>(
+    initialUserId ?? null
+  );
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    Boolean(initialUserId)
+  );
   const [hasSocialBadge, setHasSocialBadge] = useState(false);
   const [isDark, setIsDark] = useState(false);
 
@@ -35,82 +56,165 @@ export default function Navbar() {
     setIsDark(nextDark);
   }
 
+  const refreshSocialBadge = useCallback(async (uid: string) => {
+    const supabase = createClient();
+    try {
+      const { data: friendships } = await supabase
+        .from("friendships")
+        .select("id, addressee_id, status")
+        .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`);
+
+      const hasIncoming = (friendships || []).some(
+        (f) => f.status === "pending" && f.addressee_id === uid
+      );
+      if (hasIncoming) {
+        setHasSocialBadge(true);
+        return;
+      }
+
+      const acceptedIds = (friendships || [])
+        .filter((f) => f.status === "accepted")
+        .map((f) => f.id);
+
+      if (acceptedIds.length === 0) {
+        setHasSocialBadge(false);
+        return;
+      }
+
+      const [{ data: readStates }, ...latestResults] = await Promise.all([
+        supabase
+          .from("user_read_states")
+          .select("scope_id, last_read_at")
+          .eq("user_id", uid)
+          .eq("scope_type", "dm")
+          .in("scope_id", acceptedIds),
+        ...acceptedIds.map((fid) =>
+          supabase
+            .from("messages")
+            .select("friendship_id, created_at")
+            .eq("friendship_id", fid)
+            .neq("sender_id", uid)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        ),
+      ]);
+
+      const readMap = new Map(
+        (readStates || []).map((r) => [r.scope_id, r.last_read_at])
+      );
+
+      const unread = latestResults.some(({ data: m }) => {
+        if (!m?.friendship_id) return false;
+        const localLastRead =
+          typeof window !== "undefined"
+            ? localStorage.getItem(`dm_last_read_${m.friendship_id}`)
+            : null;
+        const lastReadMs = getLatestReadMs(
+          readMap.get(m.friendship_id),
+          localLastRead
+        );
+        return lastReadMs === 0 || new Date(m.created_at).getTime() > lastReadMs;
+      });
+
+      setHasSocialBadge(unread);
+    } catch {
+      setHasSocialBadge(false);
+    }
+  }, []);
+
   useEffect(() => {
     const supabase = createClient();
 
     async function loadUserProfile() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        setIsAuthenticated(false);
-        setDisplayName(null);
-        setAvatarUrl(null);
-        setHasSocialBadge(false);
-        return;
+      let uid = initialUserId ?? null;
+      let fallbackName: string | undefined;
+
+      if (!uid) {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) {
+          setResolvedUserId(null);
+          setIsAuthenticated(false);
+          setDisplayName(null);
+          setAvatarUrl(null);
+          setHasSocialBadge(false);
+          return;
+        }
+        uid = user.id;
+        fallbackName =
+          (user.user_metadata?.display_name as string) ||
+          user.email?.split("@")[0];
       }
+
+      setResolvedUserId(uid);
       setIsAuthenticated(true);
+
       const { data: profile } = await supabase
         .from("profiles")
         .select("display_name, avatar_url")
-        .eq("id", user.id)
+        .eq("id", uid)
         .maybeSingle();
 
-      setDisplayName(
-        profile?.display_name ||
-          (user.user_metadata?.display_name as string) ||
-          user.email?.split("@")[0] ||
-          "Reader"
-      );
+      setDisplayName(profile?.display_name || fallbackName || "Reader");
       setAvatarUrl(profile?.avatar_url || null);
 
-      // Subtle sage dot on Social tab when incoming requests or unread friend DMs exist
-      try {
-        const { data: friendships } = await supabase
-          .from("friendships")
-          .select("id, addressee_id, status")
-          .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
-
-        const hasIncoming = (friendships || []).some(
-          (f) => f.status === "pending" && f.addressee_id === user.id
-        );
-        if (hasIncoming) {
-          setHasSocialBadge(true);
-          return;
-        }
-
-        const acceptedIds = (friendships || [])
-          .filter((f) => f.status === "accepted")
-          .map((f) => f.id);
-
-        if (acceptedIds.length > 0) {
-          const { data: dmRows } = await supabase
-            .from("messages")
-            .select("friendship_id, created_at")
-            .in("friendship_id", acceptedIds)
-            .neq("sender_id", user.id)
-            .order("created_at", { ascending: false })
-            .limit(20);
-
-          const unread = (dmRows || []).some((m) => {
-            if (!m.friendship_id) return false;
-            const lastRead =
-              typeof window !== "undefined"
-                ? localStorage.getItem(`dm_last_read_${m.friendship_id}`)
-                : null;
-            return !lastRead || new Date(m.created_at) > new Date(lastRead);
-          });
-          setHasSocialBadge(unread);
-        } else {
-          setHasSocialBadge(false);
-        }
-      } catch {
-        setHasSocialBadge(false);
-      }
+      await refreshSocialBadge(uid);
     }
 
     loadUserProfile();
-  }, [pathname]);
+  }, [initialUserId, pathname, refreshSocialBadge]);
+
+  useEffect(() => {
+    if (!resolvedUserId) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`navbar-social-badge-${resolvedUserId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "friendships" },
+        () => {
+          refreshSocialBadge(resolvedUserId);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        (payload) => {
+          const msg = payload.new as {
+            friendship_id?: string | null;
+            sender_id?: string;
+          };
+          if (msg.friendship_id && msg.sender_id !== resolvedUserId) {
+            refreshSocialBadge(resolvedUserId);
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "user_read_states",
+          filter: `user_id=eq.${resolvedUserId}`,
+        },
+        () => {
+          refreshSocialBadge(resolvedUserId);
+        }
+      )
+      .subscribe();
+
+    const handleFocus = () => {
+      refreshSocialBadge(resolvedUserId);
+    };
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      supabase.removeChannel(channel);
+    };
+  }, [resolvedUserId, refreshSocialBadge]);
 
   const isHomeActive =
     pathname === "/" ||

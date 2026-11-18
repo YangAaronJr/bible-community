@@ -28,15 +28,17 @@ interface CircleSettingsData {
 
 export default function CircleSettingsView({
   circleId,
+  initialUserId,
   onBack,
   onCircleUpdated,
 }: {
   circleId: string;
+  initialUserId?: string;
   onBack?: () => void;
   onCircleUpdated?: () => void;
 }) {
   const router = useRouter();
-  const [userId, setUserId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(initialUserId ?? null);
   const [circle, setCircle] = useState<CircleSettingsData | null>(null);
   const [nameInput, setNameInput] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -58,15 +60,19 @@ export default function CircleSettingsView({
 
   const loadCircleSettings = useCallback(async () => {
     const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    let uid = initialUserId ?? null;
+    if (!uid) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      uid = user?.id ?? null;
+    }
 
-    if (!user) {
+    if (!uid) {
       setLoading(false);
       return;
     }
-    setUserId(user.id);
+    setUserId(uid);
 
     const [{ data: membership }, { data: circleRow }, { data: activeCustom }] =
       await Promise.all([
@@ -74,7 +80,7 @@ export default function CircleSettingsView({
           .from("circle_members")
           .select("circle_id")
           .eq("circle_id", circleId)
-          .eq("user_id", user.id)
+          .eq("user_id", uid)
           .maybeSingle(),
         supabase
           .from("circles")
@@ -84,7 +90,7 @@ export default function CircleSettingsView({
         supabase
           .from("custom_schedules")
           .select("id")
-          .eq("user_id", user.id)
+          .eq("user_id", uid)
           .eq("is_active", true)
           .limit(1)
           .maybeSingle(),
@@ -110,7 +116,7 @@ export default function CircleSettingsView({
     }
 
     setLoading(false);
-  }, [circleId]);
+  }, [circleId, initialUserId]);
 
   useEffect(() => {
     loadCircleSettings();
