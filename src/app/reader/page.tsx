@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   BookMarked,
@@ -35,16 +35,26 @@ interface CircleSummary {
   name: string;
 }
 
+function clampChapter(bookName: string, rawChapter: number): number {
+  const meta = BIBLE_BOOKS.find((b) => b.name === bookName) || BIBLE_BOOKS[0];
+  const parsed = Number.isFinite(rawChapter) ? Math.floor(rawChapter) : 1;
+  return Math.max(1, Math.min(meta.chapters, parsed || 1));
+}
+
 function ReaderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const initialBook = searchParams.get("book") || "John";
-  const initialChapter = Number(searchParams.get("chapter")) || 1;
-
-  const [book, setBook] = useState(
-    BIBLE_BOOKS.some((b) => b.name === initialBook) ? initialBook : "John"
+  const rawBook = searchParams.get("book") || "John";
+  const initialBook = BIBLE_BOOKS.some((b) => b.name === rawBook)
+    ? rawBook
+    : "John";
+  const initialChapter = clampChapter(
+    initialBook,
+    Number(searchParams.get("chapter"))
   );
+
+  const [book, setBook] = useState(initialBook);
   const [chapter, setChapter] = useState(initialChapter);
   const [translation, setTranslation] =
     useState<BibleTranslationId>(DEFAULT_TRANSLATION);
@@ -102,14 +112,25 @@ function ReaderContent() {
   const closeSelector = useCallback(() => setOpenSelector(null), []);
 
   // Sync URL query params if changed externally
+  const bookRef = useRef(book);
+  useEffect(() => {
+    bookRef.current = book;
+  }, [book]);
+
   useEffect(() => {
     const qBook = searchParams.get("book");
-    const qChapter = Number(searchParams.get("chapter"));
-    if (qBook && BIBLE_BOOKS.some((b) => b.name === qBook)) {
+    const hasValidBook = Boolean(
+      qBook && BIBLE_BOOKS.some((b) => b.name === qBook)
+    );
+    const resolvedBook = hasValidBook && qBook ? qBook : bookRef.current;
+    if (hasValidBook && qBook) {
       setBook(qBook);
     }
-    if (qChapter && qChapter > 0) {
-      setChapter(qChapter);
+    const rawChapterParam = searchParams.get("chapter");
+    if (rawChapterParam !== null) {
+      setChapter(clampChapter(resolvedBook, Number(rawChapterParam)));
+    } else if (hasValidBook && qBook) {
+      setChapter((prev) => clampChapter(qBook, prev));
     }
   }, [searchParams]);
 
@@ -490,7 +511,7 @@ function ReaderContent() {
           book={book}
           chapter={chapter}
           verse={selectedVerse.verse}
-          maxVerse={verses.length}
+          maxVerse={verses[verses.length - 1]?.verse || selectedVerse.verse}
           verseText={selectedVerse.text}
           circles={circles}
           activeCircleId={activeCircleId}

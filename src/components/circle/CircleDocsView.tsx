@@ -69,6 +69,10 @@ export default function CircleDocsView({
   const [loading, setLoading] = useState(true);
   const [saveState, setSaveState] = useState<"saved" | "saving">("saved");
   const [creating, setCreating] = useState(false);
+  const [confirmDeleteDocId, setConfirmDeleteDocId] = useState<string | null>(
+    null
+  );
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
 
   const contentSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const titleSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -269,10 +273,15 @@ export default function CircleDocsView({
   }
 
   async function handleDeleteDoc(docId: string) {
+    setDeletingDocId(docId);
     const supabase = createClient();
     await supabase.from("circle_docs").delete().eq("id", docId);
     setDocs((prev) => prev.filter((d) => d.id !== docId));
-    setActiveDocId(null);
+    setConfirmDeleteDocId(null);
+    setDeletingDocId(null);
+    if (activeDocIdRef.current === docId) {
+      setActiveDocId(null);
+    }
   }
 
   // 1. Document Editor View (when a doc is clicked)
@@ -484,11 +493,21 @@ export default function CircleDocsView({
                 : "Circle";
             const preview = stripHtmlPreview(doc.content);
 
+            const isConfirmingDelete = confirmDeleteDocId === doc.id;
+            const isDeleting = deletingDocId === doc.id;
+
             return (
-              <button
+              <div
                 key={doc.id}
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={() => setActiveDocId(doc.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setActiveDocId(doc.id);
+                  }
+                }}
                 className="w-full text-left bg-white hover:bg-[#FCFBF8] border border-[#E6E1D6] hover:border-[#4A6B5D] rounded-2xl p-4 flex items-center justify-between gap-3 transition-all shadow-2xs cursor-pointer group"
               >
                 <div className="flex items-start gap-3 min-w-0">
@@ -509,8 +528,54 @@ export default function CircleDocsView({
                     )}
                   </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-[#6B7280] group-hover:text-[#4A6B5D] shrink-0 transition-colors" />
-              </button>
+                <div
+                  className="flex items-center gap-1.5 shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {isConfirmingDelete ? (
+                    <>
+                      <button
+                        type="button"
+                        disabled={isDeleting}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmDeleteDocId(null);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] text-[11px] font-medium text-[#1F2937] cursor-pointer disabled:opacity-60"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isDeleting}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteDoc(doc.id);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-700 text-white text-[11px] font-semibold cursor-pointer disabled:opacity-60"
+                      >
+                        {isDeleting ? "Deleting..." : "Delete"}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmDeleteDocId(doc.id);
+                        }}
+                        aria-label={`Delete ${doc.title.trim() || "Untitled Doc"}`}
+                        title="Delete document"
+                        className="p-1.5 rounded-lg text-[#6B7280] hover:text-red-600 hover:bg-[#F4F1EA] transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                      <ChevronRight className="w-4 h-4 text-[#6B7280] group-hover:text-[#4A6B5D] transition-colors" />
+                    </>
+                  )}
+                </div>
+              </div>
             );
           })}
         </div>

@@ -109,7 +109,7 @@ export default function ThreadDrawer({
         .from("messages")
         .insert(payload)
         .select(
-          "id, circle_id, friendship_id, sender_id, recipient_id, parent_id, content, image_url, ocr_text, created_at"
+          "id, circle_id, friendship_id, sender_id, recipient_id, parent_id, prayer_request_id, content, image_url, ocr_text, created_at"
         )
         .single();
 

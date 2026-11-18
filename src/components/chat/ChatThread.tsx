@@ -42,11 +42,16 @@ export interface ChatMessageRow {
   sender_id: string;
   recipient_id: string | null;
   parent_id: string | null;
+  prayer_request_id?: string | null;
   content: string;
   image_url: string | null;
   ocr_text: string | null;
   created_at: string;
 }
+
+const MESSAGE_PAGE_SIZE = 50;
+const MESSAGE_SELECT_COLS =
+  "id, circle_id, friendship_id, sender_id, recipient_id, parent_id, prayer_request_id, content, image_url, ocr_text, created_at";
 
 export interface ChatThreadProps {
   mode: "circle" | "dm" | "circle-dm";
@@ -192,7 +197,17 @@ export default function ChatThread({
     null
   );
   const [showThreadsIndex, setShowThreadsIndex] = useState(false);
-  const [prayingIds, setPrayingIds] = useState<Set<string>>(new Set());
+  const [prayerReqResponders, setPrayerReqResponders] = useState<
+    Map<string, Set<string>>
+  >(new Map());
+  const [msgPrayerResponders, setMsgPrayerResponders] = useState<
+    Map<string, Set<string>>
+  >(new Map());
+  const [busyPrayerMsgIds, setBusyPrayerMsgIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [hasOlderMessages, setHasOlderMessages] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [signedImageUrls, setSignedImageUrls] = useState<
@@ -202,7 +217,12 @@ export default function ChatThread({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const resolvedImageKeysRef = useRef<Set<string>>(new Set());
+  const messagesRef = useRef<ChatMessageRow[]>([]);
   const participantMap = new Map(participants.map((p) => [p.user_id, p]));
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
@@ -212,44 +232,184 @@ export default function ChatThread({
     }, 40);
   }, []);
 
+  const buildFilteredQuery = useCallback(
+    (supabase: ReturnType<typeof createClient>) => {
+      const baseQuery = supabase.from("messages").select(MESSAGE_SELECT_COLS);
+      if (mode === "circle") {
+        return baseQuery.eq("circle_id", threadId).is("recipient_id", null);
+      }
+      if (mode === "circle-dm") {
+        return baseQuery
+          .eq("circle_id", threadId)
+          .not("recipient_id", "is", null)
+          .or(
+            `and(sender_id.eq.${currentUserId},recipient_id.eq.${peerUserId}),and(sender_id.eq.${peerUserId},recipient_id.eq.${currentUserId})`
+          );
+      }
+      return baseQuery.eq("friendship_id", threadId);
+    },
+    [mode, threadId, currentUserId, peerUserId]
+  );
+
+  const loadPrayerResponses = useCallback(async (rows: ChatMessageRow[]) => {
+    const prayerReqIds = Array.from(
+      new Set(
+        rows
+          .map((m) => m.prayer_request_id)
+          .filter((id): id is string => typeof id === "string" && id.length > 0)
+      )
+    );
+    const legacyMsgIds = rows
+      .filter((m) => m.content.startsWith("[Prayer]") && !m.prayer_request_id)
+      .map((m) => m.id);
+
+    if (prayerReqIds.length === 0 && legacyMsgIds.length === 0) {
+      setPrayerReqResponders(new Map());
+      setMsgPrayerResponders(new Map());
+      return;
+    }
+
+    const supabase = createClient();
+    const [reqRes, msgRes] = await Promise.all([
+      prayerReqIds.length > 0
+        ? supabase
+            .from("prayer_responses")
+            .select("prayer_id, user_id")
+            .in("prayer_id", prayerReqIds)
+        : Promise.resolve({ data: [] }),
+      legacyMsgIds.length > 0
+        ? supabase
+            .from("message_prayer_responses")
+            .select("message_id, user_id")
+            .in("message_id", legacyMsgIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const nextReqMap = new Map<string, Set<string>>();
+    for (const r of reqRes.data || []) {
+      if (!nextReqMap.has(r.prayer_id)) {
+        nextReqMap.set(r.prayer_id, new Set());
+      }
+      nextReqMap.get(r.prayer_id)!.add(r.user_id);
+    }
+
+    const nextMsgMap = new Map<string, Set<string>>();
+    for (const r of msgRes.data || []) {
+      if (!nextMsgMap.has(r.message_id)) {
+        nextMsgMap.set(r.message_id, new Set());
+      }
+      nextMsgMap.get(r.message_id)!.add(r.user_id);
+    }
+
+    setPrayerReqResponders(nextReqMap);
+    setMsgPrayerResponders(nextMsgMap);
+  }, []);
+
   const loadMessages = useCallback(async () => {
     const supabase = createClient();
-    const baseQuery = supabase
-      .from("messages")
-      .select(
-        "id, circle_id, friendship_id, sender_id, recipient_id, parent_id, content, image_url, ocr_text, created_at"
-      );
+    const { data: topRows, error: fetchError } = await buildFilteredQuery(
+      supabase
+    )
+      .is("parent_id", null)
+      .order("created_at", { ascending: false })
+      .limit(MESSAGE_PAGE_SIZE + 1);
 
-    const filteredQuery =
-      mode === "circle"
-        ? baseQuery.eq("circle_id", threadId).is("recipient_id", null)
-        : mode === "circle-dm"
-          ? baseQuery
-              .eq("circle_id", threadId)
-              .not("recipient_id", "is", null)
-              .or(
-                `and(sender_id.eq.${currentUserId},recipient_id.eq.${peerUserId}),and(sender_id.eq.${peerUserId},recipient_id.eq.${currentUserId})`
-              )
-          : baseQuery.eq("friendship_id", threadId);
+    if (!fetchError && topRows) {
+      const hasMore = topRows.length > MESSAGE_PAGE_SIZE;
+      const latestTop = topRows.slice(0, MESSAGE_PAGE_SIZE).reverse();
+      const topIds = latestTop.map((m) => m.id);
 
-    const { data, error: fetchError } = await filteredQuery.order(
-      "created_at",
-      { ascending: true }
-    );
+      let replyRows: ChatMessageRow[] = [];
+      if (topIds.length > 0) {
+        const { data: fetchedReplies } = await buildFilteredQuery(supabase)
+          .in("parent_id", topIds)
+          .order("created_at", { ascending: true });
+        replyRows = fetchedReplies || [];
+      }
 
-    if (!fetchError && data) {
-      setMessages(data);
-      const latest = data.length > 0 ? data[data.length - 1].created_at : null;
+      const combined = [...latestTop, ...replyRows];
+      setMessages(combined);
+      setHasOlderMessages(hasMore);
+      await loadPrayerResponses(combined);
+      const latest =
+        combined.length > 0 ? combined[combined.length - 1].created_at : null;
       onMessagesUpdated?.(latest);
       scrollToBottom();
     }
     setLoading(false);
-  }, [mode, threadId, currentUserId, peerUserId, onMessagesUpdated, scrollToBottom]);
+  }, [
+    buildFilteredQuery,
+    loadPrayerResponses,
+    onMessagesUpdated,
+    scrollToBottom,
+  ]);
 
   useEffect(() => {
     setLoading(true);
     loadMessages();
   }, [loadMessages]);
+
+  async function handleLoadOlderMessages() {
+    if (loadingOlder || !hasOlderMessages) return;
+    const topLevel = messages.filter((m) => m.parent_id === null);
+    if (topLevel.length === 0) return;
+
+    const oldestTopCreatedAt = topLevel.reduce(
+      (min, m) => (m.created_at < min ? m.created_at : min),
+      topLevel[0].created_at
+    );
+
+    const scroller = scrollerRef.current;
+    const prevScrollHeight = scroller?.scrollHeight ?? 0;
+    const prevScrollTop = scroller?.scrollTop ?? 0;
+
+    setLoadingOlder(true);
+    try {
+      const supabase = createClient();
+      const { data: olderTopRows, error: fetchError } = await buildFilteredQuery(
+        supabase
+      )
+        .is("parent_id", null)
+        .lt("created_at", oldestTopCreatedAt)
+        .order("created_at", { ascending: false })
+        .limit(MESSAGE_PAGE_SIZE + 1);
+
+      if (fetchError || !olderTopRows) return;
+
+      const hasMore = olderTopRows.length > MESSAGE_PAGE_SIZE;
+      const olderTop = olderTopRows.slice(0, MESSAGE_PAGE_SIZE).reverse();
+      const olderTopIds = olderTop.map((m) => m.id);
+
+      let olderReplies: ChatMessageRow[] = [];
+      if (olderTopIds.length > 0) {
+        const { data: fetchedReplies } = await buildFilteredQuery(supabase)
+          .in("parent_id", olderTopIds)
+          .order("created_at", { ascending: true });
+        olderReplies = fetchedReplies || [];
+      }
+
+      const prepended = [...olderTop, ...olderReplies];
+      const nextCombined = (() => {
+        const existingIds = new Set(messagesRef.current.map((m) => m.id));
+        const uniquePrepended = prepended.filter((m) => !existingIds.has(m.id));
+        return [...uniquePrepended, ...messagesRef.current];
+      })();
+
+      setMessages(nextCombined);
+      setHasOlderMessages(hasMore);
+      await loadPrayerResponses(nextCombined);
+
+      requestAnimationFrame(() => {
+        if (scrollerRef.current) {
+          const newScrollHeight = scrollerRef.current.scrollHeight;
+          scrollerRef.current.scrollTop =
+            prevScrollTop + (newScrollHeight - prevScrollHeight);
+        }
+      });
+    } finally {
+      setLoadingOlder(false);
+    }
+  }
 
   useEffect(() => {
     const rawUrls = Array.from(
@@ -337,7 +497,11 @@ export default function ChatThread({
             }
             setMessages((prev) => {
               if (prev.some((m) => m.id === newMsg.id)) return prev;
-              return [...prev, newMsg];
+              const next = [...prev, newMsg];
+              if (newMsg.content.startsWith("[Prayer]")) {
+                void loadPrayerResponses(next);
+              }
+              return next;
             });
             onMessagesUpdated?.(newMsg.created_at);
             if (newMsg.parent_id === null) {
@@ -356,12 +520,34 @@ export default function ChatThread({
           }
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "prayer_responses" },
+        () => {
+          void loadPrayerResponses(messagesRef.current);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "message_prayer_responses" },
+        () => {
+          void loadPrayerResponses(messagesRef.current);
+        }
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [mode, threadId, currentUserId, peerUserId, onMessagesUpdated, scrollToBottom]);
+  }, [
+    mode,
+    threadId,
+    currentUserId,
+    peerUserId,
+    loadPrayerResponses,
+    onMessagesUpdated,
+    scrollToBottom,
+  ]);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -467,12 +653,32 @@ export default function ChatThread({
         finalContent = `Reflection — ${verseBook} ${verseChapter}:${verseNumber}${quotedVerse}${noteSuffix}`;
       }
 
+      let linkedPrayerRequestId: string | null = null;
+      if (composeMode === "prayer" && mode === "circle") {
+        const strippedPrayerText = finalContent
+          .replace(/^\[Prayer\]\s*/, "")
+          .trim();
+        const { data: createdPrayer, error: prayerErr } = await supabase
+          .from("prayer_requests")
+          .insert({
+            circle_id: threadId,
+            user_id: currentUserId,
+            content: strippedPrayerText,
+            is_answered: false,
+          })
+          .select("id")
+          .single();
+        if (prayerErr) throw prayerErr;
+        linkedPrayerRequestId = createdPrayer?.id ?? null;
+      }
+
       const payload: Database["public"]["Tables"]["messages"]["Insert"] = {
         circle_id: mode === "dm" ? null : threadId,
         friendship_id: mode === "dm" ? threadId : null,
         sender_id: currentUserId,
         recipient_id: mode === "circle" ? null : (peerUserId ?? null),
         parent_id: null,
+        prayer_request_id: linkedPrayerRequestId,
         content: finalContent,
         image_url: uploadedImageUrl,
         ocr_text: extractedOcrText,
@@ -481,9 +687,7 @@ export default function ChatThread({
       const { data: inserted, error: insertError } = await supabase
         .from("messages")
         .insert(payload)
-        .select(
-          "id, circle_id, friendship_id, sender_id, recipient_id, parent_id, content, image_url, ocr_text, created_at"
-        )
+        .select(MESSAGE_SELECT_COLS)
         .single();
 
       if (insertError) throw insertError;
@@ -540,13 +744,88 @@ export default function ChatThread({
     }
   }
 
-  function togglePrayer(msgId: string) {
-    setPrayingIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(msgId)) next.delete(msgId);
-      else next.add(msgId);
+  async function togglePrayer(msg: ChatMessageRow) {
+    if (busyPrayerMsgIds.has(msg.id)) return;
+    const prayerReqId = msg.prayer_request_id ?? null;
+    const isCurrentlyPraying = prayerReqId
+      ? Boolean(prayerReqResponders.get(prayerReqId)?.has(currentUserId))
+      : Boolean(msgPrayerResponders.get(msg.id)?.has(currentUserId));
+
+    const updateSetInMap = (
+      prev: Map<string, Set<string>>,
+      key: string,
+      add: boolean
+    ) => {
+      const next = new Map(prev);
+      const set = new Set(next.get(key) || []);
+      if (add) set.add(currentUserId);
+      else set.delete(currentUserId);
+      next.set(key, set);
       return next;
-    });
+    };
+
+    if (prayerReqId) {
+      setPrayerReqResponders((prev) =>
+        updateSetInMap(prev, prayerReqId, !isCurrentlyPraying)
+      );
+    } else {
+      setMsgPrayerResponders((prev) =>
+        updateSetInMap(prev, msg.id, !isCurrentlyPraying)
+      );
+    }
+
+    setBusyPrayerMsgIds((prev) => new Set(prev).add(msg.id));
+    const supabase = createClient();
+
+    try {
+      if (prayerReqId) {
+        if (isCurrentlyPraying) {
+          const { error: delErr } = await supabase
+            .from("prayer_responses")
+            .delete()
+            .eq("prayer_id", prayerReqId)
+            .eq("user_id", currentUserId);
+          if (delErr) throw delErr;
+        } else {
+          const { error: insErr } = await supabase
+            .from("prayer_responses")
+            .insert({ prayer_id: prayerReqId, user_id: currentUserId });
+          if (insErr) throw insErr;
+        }
+      } else if (isCurrentlyPraying) {
+        const { error: delErr } = await supabase
+          .from("message_prayer_responses")
+          .delete()
+          .eq("message_id", msg.id)
+          .eq("user_id", currentUserId);
+        if (delErr) throw delErr;
+      } else {
+        const { error: insErr } = await supabase
+          .from("message_prayer_responses")
+          .insert({ message_id: msg.id, user_id: currentUserId });
+        if (insErr) throw insErr;
+      }
+    } catch (err: unknown) {
+      // Revert optimistic update on failure
+      if (prayerReqId) {
+        setPrayerReqResponders((prev) =>
+          updateSetInMap(prev, prayerReqId, isCurrentlyPraying)
+        );
+      } else {
+        setMsgPrayerResponders((prev) =>
+          updateSetInMap(prev, msg.id, isCurrentlyPraying)
+        );
+      }
+      setError(
+        err instanceof Error ? err.message : "Could not update prayer response."
+      );
+    } finally {
+      setBusyPrayerMsgIds((prev) => {
+        const next = new Set(prev);
+        next.delete(msg.id);
+        return next;
+      });
+    }
   }
 
   const topLevelPosts = messages.filter((m) => m.parent_id === null);
@@ -690,25 +969,33 @@ export default function ChatThread({
 
       {/* Subtle Search Bar (Content + OCR) */}
       {showSearch && (
-        <div className="px-4 py-2 bg-[#FAF9F6] border-b border-[#E6E1D6] flex items-center gap-2 shrink-0">
-          <Search className="w-3.5 h-3.5 text-[#6B7280] shrink-0" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search messages & extracted notebook notes..."
-            autoFocus
-            className="flex-1 bg-transparent text-xs text-[#1F2937] placeholder-[#6B7280] focus:outline-none"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery("")}
-              aria-label="Clear search"
-              className="text-[#6B7280] hover:text-[#1F2937] cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+        <div className="bg-[#FAF9F6] border-b border-[#E6E1D6] shrink-0">
+          <div className="px-4 py-2 flex items-center gap-2">
+            <Search className="w-3.5 h-3.5 text-[#6B7280] shrink-0" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search messages & extracted notebook notes..."
+              autoFocus
+              className="flex-1 bg-transparent text-xs text-[#1F2937] placeholder-[#6B7280] focus:outline-none"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                aria-label="Clear search"
+                className="text-[#6B7280] hover:text-[#1F2937] cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          {hasOlderMessages && (
+            <p className="px-4 pb-1.5 text-[10.5px] text-[#6B7280]">
+              Searching loaded messages — load older messages above to search
+              further back
+            </p>
           )}
         </div>
       )}
@@ -718,6 +1005,23 @@ export default function ChatThread({
         ref={scrollerRef}
         className="flex-1 overflow-y-auto px-4 py-3.5 space-y-4"
       >
+        {!loading && hasOlderMessages && (
+          <div className="flex justify-center pb-1">
+            <button
+              type="button"
+              disabled={loadingOlder}
+              onClick={handleLoadOlderMessages}
+              className="px-3.5 py-1.5 rounded-full bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] text-[11px] font-medium text-[#4A6B5D] inline-flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-60"
+            >
+              {loadingOlder && <Loader2 className="w-3 h-3 animate-spin" />}
+              <span>
+                {loadingOlder
+                  ? "Loading older messages..."
+                  : "Load older messages"}
+              </span>
+            </button>
+          </div>
+        )}
         {loading ? (
           <div className="py-12 flex items-center justify-center text-xs text-[#6B7280]">
             <Loader2 className="w-4 h-4 animate-spin mr-2" />
@@ -751,6 +1055,11 @@ export default function ChatThread({
               msg.content.startsWith("📖 Reflection on") ||
               msg.content.startsWith("📖 Note on");
             const scriptureRef = parseScriptureRef(displayContent);
+            const prayerResponders = msg.prayer_request_id
+              ? prayerReqResponders.get(msg.prayer_request_id)
+              : msgPrayerResponders.get(msg.id);
+            const isPraying = Boolean(prayerResponders?.has(currentUserId));
+            const isPrayerBusy = busyPrayerMsgIds.has(msg.id);
 
             return (
               <div key={msg.id} className="space-y-2">
@@ -858,16 +1167,17 @@ export default function ChatThread({
                       <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#DCE8E0]">
                         <button
                           type="button"
-                          onClick={() => togglePrayer(msg.id)}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
-                            prayingIds.has(msg.id)
+                          disabled={isPrayerBusy}
+                          onClick={() => togglePrayer(msg)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-70 ${
+                            isPraying
                               ? "bg-[#4A6B5D] text-white"
                               : "bg-white border border-[#CFE0D6] text-[#4A6B5D] hover:bg-[#EBF1EE]"
                           }`}
                         >
                           <Heart className="w-3.5 h-3.5" />
                           <span>
-                            {prayingIds.has(msg.id)
+                            {isPraying
                               ? "Praying for you"
                               : `Pray for ${authorName.split(" ")[0]}`}
                           </span>

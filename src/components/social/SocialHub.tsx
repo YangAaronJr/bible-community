@@ -58,7 +58,7 @@ function AvatarCircle({
 }) {
   return (
     <div
-      className={`w-[52px] h-[52px] rounded-full overflow-hidden ring-1 ring-[#E6E1D6] bg-[#DDE6E1] text-[#4A6B5D] flex items-center justify-center font-semibold shrink-0 select-none ${
+      className={`w-[56px] h-[56px] rounded-full overflow-hidden ring-1 ring-[#E6E1D6] group-hover:ring-[#4A6B5D] group-hover:scale-105 bg-[#DDE6E1] text-[#4A6B5D] flex items-center justify-center font-semibold shrink-0 select-none transition-all ${
         editorial ? "font-editorial text-lg" : "text-sm"
       }`}
     >
@@ -72,8 +72,12 @@ function AvatarCircle({
   );
 }
 
-export default function SocialHub() {
-  const [userId, setUserId] = useState<string | null>(null);
+export default function SocialHub({
+  initialUserId,
+}: {
+  initialUserId?: string;
+} = {}) {
+  const [userId, setUserId] = useState<string | null>(initialUserId ?? null);
   const [myFriendCode, setMyFriendCode] = useState<string | null>(null);
   const [friends, setFriends] = useState<AcceptedFriend[]>([]);
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
@@ -97,15 +101,19 @@ export default function SocialHub() {
 
   const loadSocialData = useCallback(async () => {
     const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    let uid = initialUserId ?? null;
+    if (!uid) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      uid = user?.id ?? null;
+    }
 
-    if (!user) {
+    if (!uid) {
       setLoading(false);
       return;
     }
-    setUserId(user.id);
+    setUserId(uid);
 
     const [{ data: myFriendCodeValue }, { data: friendshipRows }, { data: memberships }] =
       await Promise.all([
@@ -113,12 +121,12 @@ export default function SocialHub() {
         supabase
           .from("friendships")
           .select("id, requester_id, addressee_id, status")
-          .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`)
+          .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`)
           .order("created_at", { ascending: false }),
         supabase
           .from("circle_members")
           .select("circle_id")
-          .eq("user_id", user.id),
+          .eq("user_id", uid),
       ]);
 
     setMyFriendCode(myFriendCodeValue || null);
@@ -128,7 +136,7 @@ export default function SocialHub() {
     const peerIds = Array.from(
       new Set(
         friendRows.map((f) =>
-          f.requester_id === user.id ? f.addressee_id : f.requester_id
+          f.requester_id === uid ? f.addressee_id : f.requester_id
         )
       )
     );
@@ -153,19 +161,34 @@ export default function SocialHub() {
     const acceptedRows = friendRows.filter((f) => f.status === "accepted");
     const acceptedIds = acceptedRows.map((f) => f.id);
 
-    // Check unread 1-on-1 DMs per friendship
+    // Check unread 1-on-1 DMs per friendship using user_read_states + localStorage fallback
     const latestIncomingByFriendship = new Map<string, string>();
+    const dbReadMap = new Map<string, string>();
     if (acceptedIds.length > 0) {
-      const { data: dmRows } = await supabase
-        .from("messages")
-        .select("friendship_id, created_at")
-        .in("friendship_id", acceptedIds)
-        .neq("sender_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(60);
+      const [{ data: readStates }, ...latestResults] = await Promise.all([
+        supabase
+          .from("user_read_states")
+          .select("scope_id, last_read_at")
+          .eq("user_id", uid)
+          .eq("scope_type", "dm")
+          .in("scope_id", acceptedIds),
+        ...acceptedIds.map((fid) =>
+          supabase
+            .from("messages")
+            .select("friendship_id, created_at")
+            .eq("friendship_id", fid)
+            .neq("sender_id", uid)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        ),
+      ]);
 
-      for (const m of dmRows || []) {
-        if (m.friendship_id && !latestIncomingByFriendship.has(m.friendship_id)) {
+      for (const r of readStates || []) {
+        dbReadMap.set(r.scope_id, r.last_read_at);
+      }
+      for (const { data: m } of latestResults) {
+        if (m?.friendship_id) {
           latestIncomingByFriendship.set(m.friendship_id, m.created_at);
         }
       }
@@ -174,14 +197,24 @@ export default function SocialHub() {
     setFriends(
       acceptedRows.map((f) => {
         const peerId =
-          f.requester_id === user.id ? f.addressee_id : f.requester_id;
+          f.requester_id === uid ? f.addressee_id : f.requester_id;
         const prof = profileMap.get(peerId);
         const latestAt = latestIncomingByFriendship.get(f.id);
         let hasUnreadDm = false;
-        if (latestAt && typeof window !== "undefined") {
-          const lastRead = localStorage.getItem(`dm_last_read_${f.id}`);
+        if (latestAt) {
+          const dbLastRead = dbReadMap.get(f.id);
+          const localLastRead =
+            typeof window !== "undefined"
+              ? localStorage.getItem(`dm_last_read_${f.id}`)
+              : null;
+          const dbMs = dbLastRead ? new Date(dbLastRead).getTime() : 0;
+          const localMs = localLastRead ? new Date(localLastRead).getTime() : 0;
+          const lastReadMs = Math.max(
+            Number.isFinite(dbMs) ? dbMs : 0,
+            Number.isFinite(localMs) ? localMs : 0
+          );
           hasUnreadDm =
-            !lastRead || new Date(latestAt) > new Date(lastRead);
+            lastReadMs === 0 || new Date(latestAt).getTime() > lastReadMs;
         }
         return {
           friendshipId: f.id,
@@ -197,7 +230,7 @@ export default function SocialHub() {
       friendRows
         .filter((f) => f.status === "pending")
         .map((f) => {
-          const isIncoming = f.addressee_id === user.id;
+          const isIncoming = f.addressee_id === uid;
           const otherId = isIncoming ? f.requester_id : f.addressee_id;
           const prof = profileMap.get(otherId);
           return {
@@ -231,7 +264,7 @@ export default function SocialHub() {
     }
 
     setLoading(false);
-  }, []);
+  }, [initialUserId]);
 
   useEffect(() => {
     loadSocialData();
@@ -254,6 +287,16 @@ export default function SocialHub() {
           const row = payload.new as { friendship_id?: string | null };
           if (row.friendship_id) loadSocialData();
         }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "user_read_states",
+          filter: `user_id=eq.${userId}`,
+        },
+        () => loadSocialData()
       )
       .subscribe();
 
@@ -541,14 +584,14 @@ export default function SocialHub() {
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 py-1">
                 {friends.map((friend) => (
                   <Link
                     key={friend.friendshipId}
                     href={`/members/${friend.userId}`}
-                    className="bg-white border border-[#E6E1D6] rounded-2xl p-3 flex flex-col items-center text-center hover:border-[#4A6B5D] transition-all relative group shadow-2xs"
+                    className="py-1.5 px-1 flex flex-col items-center text-center gap-2 relative group"
                   >
-                    <div className="relative mb-2">
+                    <div className="relative">
                       <AvatarCircle
                         name={friend.displayName}
                         avatarUrl={friend.avatarUrl}
@@ -556,7 +599,7 @@ export default function SocialHub() {
                       {friend.hasUnreadDm && (
                         <span
                           aria-label="Unread direct message"
-                          className="absolute top-0 right-0 w-3 h-3 rounded-full bg-[#4A6B5D] ring-2 ring-white dark:ring-[#1E1E1C]"
+                          className="absolute top-0 right-0 w-3 h-3 rounded-full bg-[#4A6B5D] ring-2 ring-[#FAF9F6] dark:ring-[#141413]"
                         />
                       )}
                     </div>
@@ -627,7 +670,7 @@ export default function SocialHub() {
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 py-1">
                 {circles.map((circle) => (
                   <Link
                     key={circle.id}
@@ -637,15 +680,13 @@ export default function SocialHub() {
                         localStorage.setItem("active_circle_id", circle.id);
                       }
                     }}
-                    className="bg-white border border-[#E6E1D6] rounded-2xl p-3 flex flex-col items-center text-center hover:border-[#4A6B5D] transition-all shadow-2xs"
+                    className="py-1.5 px-1 flex flex-col items-center text-center gap-2 group"
                   >
-                    <div className="mb-2">
-                      <AvatarCircle
-                        name={circle.name}
-                        avatarUrl={circle.avatarUrl}
-                        editorial
-                      />
-                    </div>
+                    <AvatarCircle
+                      name={circle.name}
+                      avatarUrl={circle.avatarUrl}
+                      editorial
+                    />
                     <span className="text-xs font-semibold text-[#1F2937] truncate w-full">
                       {circle.name}
                     </span>
