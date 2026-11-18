@@ -332,7 +332,12 @@ export default function ChatThread({
       setHasOlderMessages(hasMore);
       await loadPrayerResponses(combined);
       const latest =
-        combined.length > 0 ? combined[combined.length - 1].created_at : null;
+        combined.length > 0
+          ? combined.reduce(
+              (max, m) => (m.created_at > max ? m.created_at : max),
+              combined[0].created_at
+            )
+          : null;
       onMessagesUpdated?.(latest);
       scrollToBottom();
     }
@@ -497,12 +502,14 @@ export default function ChatThread({
             }
             setMessages((prev) => {
               if (prev.some((m) => m.id === newMsg.id)) return prev;
-              const next = [...prev, newMsg];
-              if (newMsg.content.startsWith("[Prayer]")) {
-                void loadPrayerResponses(next);
-              }
-              return next;
+              return [...prev, newMsg];
             });
+            if (
+              newMsg.content.startsWith("[Prayer]") &&
+              !messagesRef.current.some((m) => m.id === newMsg.id)
+            ) {
+              void loadPrayerResponses([...messagesRef.current, newMsg]);
+            }
             onMessagesUpdated?.(newMsg.created_at);
             if (newMsg.parent_id === null) {
               scrollToBottom();
