@@ -180,6 +180,11 @@ export default function WaystoneTrail({
     null
   );
   const [selectedBookName, setSelectedBookName] = useState<string | null>(null);
+  const [animState, setAnimState] = useState<
+    "idle" | "exit-in" | "exit-out" | "enter-in" | "enter-out"
+  >("idle");
+  const [zoomOrigin, setZoomOrigin] = useState<string>("50% 40%");
+  const animTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeMovement: CanonicalMovement | null = selectedMovementId
     ? CANONICAL_MOVEMENTS.find((m) => m.id === selectedMovementId) ?? null
@@ -196,62 +201,143 @@ export default function WaystoneTrail({
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
-  const findCenteredNodeId = useCallback((): string | null => {
-    const container = trailRef.current;
-    if (!container) return null;
-    const nodes = container.querySelectorAll<HTMLElement>("[data-waystone-id]");
-    if (nodes.length === 0) return null;
+  const findNodeNearPoint = useCallback(
+    (clientX?: number, clientY?: number): string | null => {
+      const container = trailRef.current;
+      if (!container) return null;
+      const nodes = container.querySelectorAll<HTMLElement>("[data-waystone-id]");
+      if (nodes.length === 0) return null;
 
-    const viewportCenter = window.innerHeight / 2;
-    let bestId: string | null = null;
-    let bestDist = Number.POSITIVE_INFINITY;
+      const targetX = clientX ?? window.innerWidth / 2;
+      const targetY = clientY ?? window.innerHeight / 2;
+      let bestId: string | null = null;
+      let bestDist = Number.POSITIVE_INFINITY;
 
-    nodes.forEach((node) => {
-      const rect = node.getBoundingClientRect();
-      const nodeCenter = rect.top + rect.height / 2;
-      const dist = Math.abs(nodeCenter - viewportCenter);
-      if (dist < bestDist) {
-        bestDist = dist;
-        bestId = node.dataset.waystoneId ?? null;
+      nodes.forEach((node) => {
+        const rect = node.getBoundingClientRect();
+        const nodeX = rect.left + rect.width / 2;
+        const nodeY = rect.top + rect.height / 2;
+        const dist = Math.hypot(nodeX - targetX, nodeY - targetY);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestId = node.dataset.waystoneId ?? null;
+        }
+      });
+
+      return bestId;
+    },
+    []
+  );
+
+  const computeOrigin = useCallback(
+    (nodeId?: string | null, clientX?: number, clientY?: number): string => {
+      const container = trailRef.current;
+      if (!container) return "50% 35%";
+      const containerRect = container.getBoundingClientRect();
+
+      if (nodeId) {
+        const node = container.querySelector<HTMLElement>(
+          `[data-waystone-id="${CSS.escape(nodeId)}"]`
+        );
+        if (node) {
+          const rect = node.getBoundingClientRect();
+          const ox = rect.left + rect.width / 2 - containerRect.left;
+          const oy = rect.top + rect.height / 2 - containerRect.top;
+          return `${Math.round(ox)}px ${Math.round(oy)}px`;
+        }
       }
-    });
 
-    return bestId;
+      if (clientX !== undefined && clientY !== undefined) {
+        const ox = clientX - containerRect.left;
+        const oy = clientY - containerRect.top;
+        return `${Math.round(ox)}px ${Math.round(oy)}px`;
+      }
+
+      return "50% 35%";
+    },
+    []
+  );
+
+  const runZoomTransition = useCallback(
+    (direction: "in" | "out", origin: string, applyChange: () => void) => {
+      if (animTimerRef.current) {
+        clearTimeout(animTimerRef.current);
+      }
+
+      setZoomOrigin(origin);
+      setAnimState(direction === "in" ? "exit-in" : "exit-out");
+
+      animTimerRef.current = setTimeout(() => {
+        applyChange();
+        scrollToTopSmooth();
+        setAnimState(direction === "in" ? "enter-in" : "enter-out");
+
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setAnimState("idle");
+          });
+        });
+      }, 170);
+    },
+    [scrollToTopSmooth]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (animTimerRef.current) clearTimeout(animTimerRef.current);
+    };
   }, []);
 
   const handleZoomIn = useCallback(
-    (targetId?: string | null) => {
-      const id = targetId ?? findCenteredNodeId();
+    (targetId?: string | null, clientX?: number, clientY?: number) => {
+      const id = targetId ?? findNodeNearPoint(clientX, clientY);
       if (!id) return;
+
+      const origin = computeOrigin(id, clientX, clientY);
 
       if (zoomLevel === 1) {
         if (CANONICAL_MOVEMENTS.some((m) => m.id === id)) {
-          setSelectedMovementId(id);
-          setSelectedBookName(null);
-          scrollToTopSmooth();
+          runZoomTransition("in", origin, () => {
+            setSelectedMovementId(id);
+            setSelectedBookName(null);
+          });
         }
       } else if (zoomLevel === 2 && activeMovement) {
         if (activeMovement.books.some((b) => b.name === id)) {
-          setSelectedBookName(id);
-          scrollToTopSmooth();
+          runZoomTransition("in", origin, () => {
+            setSelectedBookName(id);
+          });
         }
       }
     },
-    [activeMovement, findCenteredNodeId, scrollToTopSmooth, zoomLevel]
+    [
+      activeMovement,
+      computeOrigin,
+      findNodeNearPoint,
+      runZoomTransition,
+      zoomLevel,
+    ]
   );
 
-  const handleZoomOut = useCallback(() => {
-    if (zoomLevel === 3) {
-      setSelectedBookName(null);
-      scrollToTopSmooth();
-    } else if (zoomLevel === 2) {
-      setSelectedMovementId(null);
-      setSelectedBookName(null);
-      scrollToTopSmooth();
-    }
-  }, [scrollToTopSmooth, zoomLevel]);
+  const handleZoomOut = useCallback(
+    (clientX?: number, clientY?: number) => {
+      const origin = computeOrigin(null, clientX, clientY);
 
-  // Ctrl/Cmd + wheel zoom on desktop (normal vertical scroll remains untouched)
+      if (zoomLevel === 3) {
+        runZoomTransition("out", origin, () => {
+          setSelectedBookName(null);
+        });
+      } else if (zoomLevel === 2) {
+        runZoomTransition("out", origin, () => {
+          setSelectedMovementId(null);
+          setSelectedBookName(null);
+        });
+      }
+    },
+    [computeOrigin, runZoomTransition, zoomLevel]
+  );
+
+  // Ctrl/Cmd + wheel zoom on desktop toward cursor (normal vertical scroll untouched)
   useEffect(() => {
     const el = trailRef.current;
     if (!el) return;
@@ -261,14 +347,14 @@ export default function WaystoneTrail({
       e.preventDefault();
 
       const now = Date.now();
-      if (now - lastZoomAtRef.current < 380) return;
+      if (now - lastZoomAtRef.current < 420) return;
 
       if (e.deltaY < -4) {
         lastZoomAtRef.current = now;
-        handleZoomIn();
+        handleZoomIn(null, e.clientX, e.clientY);
       } else if (e.deltaY > 4) {
         lastZoomAtRef.current = now;
-        handleZoomOut();
+        handleZoomOut(e.clientX, e.clientY);
       }
     };
 
@@ -286,18 +372,20 @@ export default function WaystoneTrail({
     if (e.touches.length !== 2 || pinchStartDistRef.current === null) return;
 
     const now = Date.now();
-    if (now - lastZoomAtRef.current < 420) return;
+    if (now - lastZoomAtRef.current < 440) return;
 
     const currentDist = getTouchDistance(e.touches);
     const delta = currentDist - pinchStartDistRef.current;
 
     if (Math.abs(delta) >= 36) {
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
       lastZoomAtRef.current = now;
       pinchStartDistRef.current = null;
       if (delta > 0) {
-        handleZoomIn();
+        handleZoomIn(null, midX, midY);
       } else {
-        handleZoomOut();
+        handleZoomOut(midX, midY);
       }
     }
   };
@@ -368,8 +456,11 @@ export default function WaystoneTrail({
         <button
           type="button"
           onClick={() => {
-            setSelectedMovementId(null);
-            setSelectedBookName(null);
+            if (zoomLevel === 1) return;
+            runZoomTransition("out", "50% 25%", () => {
+              setSelectedMovementId(null);
+              setSelectedBookName(null);
+            });
           }}
           className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-colors border ${
             zoomLevel === 1
@@ -386,7 +477,12 @@ export default function WaystoneTrail({
             <ChevronRight className="w-3.5 h-3.5 text-[#6B7280] dark:text-[#A3A19A]" />
             <button
               type="button"
-              onClick={() => setSelectedBookName(null)}
+              onClick={() => {
+                if (zoomLevel === 2) return;
+                runZoomTransition("out", "50% 25%", () => {
+                  setSelectedBookName(null);
+                });
+              }}
               className={`px-3 py-1 rounded-full text-xs font-medium transition-colors border ${
                 zoomLevel === 2
                   ? "bg-[#4A6B5D] text-white border-[#4A6B5D] dark:bg-[#7C9A82] dark:text-[#141413] dark:border-[#7C9A82]"
@@ -410,21 +506,36 @@ export default function WaystoneTrail({
         )}
       </nav>
 
-      {/* LEVEL 1: Movements S-Curve */}
-      {zoomLevel === 1 && (
-        <SCurveTrail
-          points={movementPoints}
-          onSelect={(id) => handleZoomIn(id)}
-        />
-      )}
+      {/* Animated Zoom Container */}
+      <div
+        style={{ transformOrigin: zoomOrigin }}
+        className={`transition-all duration-200 ease-out will-change-transform ${
+          animState === "exit-in"
+            ? "scale-110 opacity-0"
+            : animState === "exit-out"
+            ? "scale-95 opacity-0"
+            : animState === "enter-in"
+            ? "scale-95 opacity-0"
+            : animState === "enter-out"
+            ? "scale-105 opacity-0"
+            : "scale-100 opacity-100"
+        }`}
+      >
+        {/* LEVEL 1: Movements S-Curve */}
+        {zoomLevel === 1 && (
+          <SCurveTrail
+            points={movementPoints}
+            onSelect={(id) => handleZoomIn(id)}
+          />
+        )}
 
-      {/* LEVEL 2: Books S-Curve */}
-      {zoomLevel === 2 && (
-        <SCurveTrail
-          points={bookPoints}
-          onSelect={(id) => handleZoomIn(id)}
-        />
-      )}
+        {/* LEVEL 2: Books S-Curve */}
+        {zoomLevel === 2 && (
+          <SCurveTrail
+            points={bookPoints}
+            onSelect={(id) => handleZoomIn(id)}
+          />
+        )}
 
       {/* LEVEL 3: Chapters & Private Notes */}
       {zoomLevel === 3 && activeBook && (
@@ -514,6 +625,7 @@ export default function WaystoneTrail({
           )}
         </ol>
       )}
+      </div>
     </div>
   );
 }
