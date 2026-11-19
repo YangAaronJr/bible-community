@@ -3,6 +3,7 @@ import {
   BIBLE_BOOKS,
   BIBLE_MOVEMENTS,
   chapterKey,
+  combineDailyReadings,
   encodeSharedCustomPlan,
   getActivePlanBooks,
   getNextUnreadChapters,
@@ -158,6 +159,37 @@ describe("reading-plans", () => {
       const sunday = new Date("2026-11-15T12:00:00Z"); // Sunday = 0
       expect(isRestDay([0], sunday)).toBe(true);
       expect(isRestDay([3], sunday)).toBe(false);
+    });
+
+    it("combines personal and circle daily readings without duplicates", () => {
+      const combined = combineDailyReadings(
+        [
+          { book: "John", chapter: 1 },
+          { book: "Psalms", chapter: 23, timeOfDay: "Morning" },
+        ],
+        [
+          { book: "Psalms", chapter: 23 },
+          { book: "Romans", chapter: 8 },
+        ],
+        "Oak Fellowship"
+      );
+
+      expect(combined).toEqual([
+        { book: "John", chapter: 1, source: "personal" },
+        {
+          book: "Psalms",
+          chapter: 23,
+          source: "both",
+          circleName: "Oak Fellowship",
+          timeOfDay: "Morning",
+        },
+        {
+          book: "Romans",
+          chapter: 8,
+          source: "circle",
+          circleName: "Oak Fellowship",
+        },
+      ]);
     });
   });
 });
