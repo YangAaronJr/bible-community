@@ -1028,6 +1028,7 @@ export default function HomeClient({
                           onClick={() =>
                             togglePhysicalBible(slot.book, slot.chapter)
                           }
+                          title="Mark chapter as read using your physical Bible"
                           className={`py-2.5 px-3 rounded-xl border text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
                             checked
                               ? "bg-[#EBF1EE] border-[#4A6B5D] text-[#3D5A4E]"
@@ -1042,7 +1043,7 @@ export default function HomeClient({
                           ) : (
                             <>
                               <BookMarked className="w-3.5 h-3.5" />
-                              <span>Physical Bible</span>
+                              <span>Mark Read (Print)</span>
                             </>
                           )}
                         </button>
@@ -1150,6 +1151,7 @@ export default function HomeClient({
                     onClick={() =>
                       togglePhysicalBible(nextUp.book, nextUp.chapter)
                     }
+                    title="Mark chapter as read using your physical Bible"
                     className={`py-3 px-4 rounded-2xl border text-xs font-medium flex items-center justify-center gap-2 transition-colors cursor-pointer ${
                       isNextChecked
                         ? "bg-[#EBF1EE] border-[#4A6B5D] text-[#3D5A4E]"
@@ -1164,7 +1166,7 @@ export default function HomeClient({
                     ) : (
                       <>
                         <BookMarked className="w-4 h-4" />
-                        <span>Physical Bible</span>
+                        <span>Mark Read (Print)</span>
                       </>
                     )}
                   </button>
