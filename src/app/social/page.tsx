@@ -20,7 +20,7 @@ export default async function SocialPage() {
         initialAvatarUrl={session.avatarUrl}
       />
       <main className="flex-1 max-w-xl w-full mx-auto px-5 pt-4 pb-4 space-y-4">
-        <QuietPageHeader title="Social" />
+        <QuietPageHeader />
         <SocialHub initialUserId={session.userId} />
       </main>
     </div>
