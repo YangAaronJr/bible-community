@@ -263,3 +263,167 @@ export function getSharedPlanTitle(
   if (!parsed) return sharedPlanId;
   return parsed.kind === "preset" ? parsed.preset.title : parsed.custom.title;
 }
+
+export interface BibleMovement {
+  id: string;
+  label: string;
+  testament: "OT" | "NT";
+  books: string[];
+}
+
+export const BIBLE_MOVEMENTS: BibleMovement[] = [
+  {
+    id: "torah",
+    label: "Torah (Law)",
+    testament: "OT",
+    books: ["Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy"],
+  },
+  {
+    id: "history",
+    label: "History",
+    testament: "OT",
+    books: [
+      "Joshua",
+      "Judges",
+      "Ruth",
+      "1 Samuel",
+      "2 Samuel",
+      "1 Kings",
+      "2 Kings",
+      "1 Chronicles",
+      "2 Chronicles",
+      "Ezra",
+      "Nehemiah",
+      "Esther",
+    ],
+  },
+  {
+    id: "wisdom",
+    label: "Wisdom & Poetry",
+    testament: "OT",
+    books: ["Job", "Psalms", "Proverbs", "Ecclesiastes", "Song of Solomon"],
+  },
+  {
+    id: "major-prophets",
+    label: "Major Prophets",
+    testament: "OT",
+    books: ["Isaiah", "Jeremiah", "Lamentations", "Ezekiel", "Daniel"],
+  },
+  {
+    id: "minor-prophets",
+    label: "Minor Prophets",
+    testament: "OT",
+    books: [
+      "Hosea",
+      "Joel",
+      "Amos",
+      "Obadiah",
+      "Jonah",
+      "Micah",
+      "Nahum",
+      "Habakkuk",
+      "Zephaniah",
+      "Haggai",
+      "Zechariah",
+      "Malachi",
+    ],
+  },
+  {
+    id: "gospels-acts",
+    label: "Gospels & Acts",
+    testament: "NT",
+    books: ["Matthew", "Mark", "Luke", "John", "Acts"],
+  },
+  {
+    id: "paul-letters",
+    label: "Paul's Letters",
+    testament: "NT",
+    books: [
+      "Romans",
+      "1 Corinthians",
+      "2 Corinthians",
+      "Galatians",
+      "Ephesians",
+      "Philippians",
+      "Colossians",
+      "1 Thessalonians",
+      "2 Thessalonians",
+      "1 Timothy",
+      "2 Timothy",
+      "Titus",
+      "Philemon",
+    ],
+  },
+  {
+    id: "general-revelation",
+    label: "General Epistles & Revelation",
+    testament: "NT",
+    books: [
+      "Hebrews",
+      "James",
+      "1 Peter",
+      "2 Peter",
+      "1 John",
+      "2 John",
+      "3 John",
+      "Jude",
+      "Revelation",
+    ],
+  },
+];
+
+export interface UnifiedPlan {
+  id: string;
+  title: string;
+  presetId?: "nt-90" | "gospels-psalms" | null;
+  books: string[];
+  chaptersPerDay: number;
+  restDays: number[];
+  source: "personal" | "circle";
+  circleId?: string;
+  circleName?: string;
+}
+
+export function resolveUnifiedPlanSequence(
+  plan: Pick<UnifiedPlan, "presetId" | "books">
+): ChapterRef[] {
+  if (plan.presetId) {
+    const preset = READING_PLAN_PRESETS.find((p) => p.id === plan.presetId);
+    if (preset) return preset.sequence;
+  }
+  return expandBooks(plan.books);
+}
+
+export function getNextUnreadChapters(
+  sequence: ChapterRef[],
+  completedKeys: { has(key: string): boolean },
+  count = 1,
+  sessionKeys?: { has(key: string): boolean }
+): ChapterRef[] {
+  const limit = Math.max(1, count);
+  const remaining = sequence.filter((c) => {
+    const key = chapterKey(c.book, c.chapter);
+    return !completedKeys.has(key) || Boolean(sessionKeys?.has(key));
+  });
+  if (remaining.length > 0) return remaining.slice(0, limit);
+  return sequence.length > 0 ? [sequence[0]] : [];
+}
+
+export function getActivePlanBooks(
+  plans: Array<Pick<UnifiedPlan, "presetId" | "books">>
+): Set<string> {
+  const books = new Set<string>();
+  for (const plan of plans) {
+    for (const ch of resolveUnifiedPlanSequence(plan)) {
+      books.add(ch.book);
+    }
+  }
+  return books;
+}
+
+export function isRestDay(
+  restDays: number[],
+  date: Date = new Date()
+): boolean {
+  return restDays.includes(date.getDay());
+}

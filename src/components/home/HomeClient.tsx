@@ -22,10 +22,15 @@ import { createClient } from "@/lib/supabase/client";
 import {
   READING_PLAN_PRESETS,
   chapterKey,
+  getNextUnreadChapters,
+  isRestDay,
+  parseSharedPlan,
   resolveTrackSequence,
+  resolveUnifiedPlanSequence,
   type ChapterRef,
   type CustomScheduleSlot,
   type ReadingPlanPreset,
+  type UnifiedPlan,
 } from "@/lib/plans/reading-plans";
 
 interface ProgressEntry {
@@ -63,7 +68,22 @@ interface CircleActivityUpdate {
   createdAt: string;
 }
 
-type UpdateItem = FriendDmUpdate | FriendRequestUpdate | CircleActivityUpdate;
+interface CirclePlanUpdate {
+  kind: "circle-plan-update";
+  id: string;
+  circleId: string;
+  circleName: string;
+  avatarUrl: string | null;
+  planId: string;
+  planTitle: string;
+  createdAt: string;
+}
+
+type UpdateItem =
+  | FriendDmUpdate
+  | FriendRequestUpdate
+  | CircleActivityUpdate
+  | CirclePlanUpdate;
 
 interface CustomScheduleState {
   title: string;
@@ -76,6 +96,7 @@ interface HomeSnapshot {
   planId: "nt-90" | "gospels-psalms" | null;
   progressMap: Map<string, ProgressEntry>;
   activeCustomSchedule: CustomScheduleState | null;
+  activeCirclePlan: UnifiedPlan | null;
   updates: UpdateItem[];
 }
 
@@ -130,6 +151,7 @@ async function fetchHomeSnapshot(): Promise<HomeSnapshot> {
       planId,
       progressMap: new Map(),
       activeCustomSchedule: null,
+      activeCirclePlan: null,
       updates: [],
     };
   }
@@ -287,16 +309,20 @@ async function fetchHomeSnapshot(): Promise<HomeSnapshot> {
 
   // 2. Non-granular Circle activity indicators
   const circleIds = (memberships || []).map((m) => m.circle_id);
+  let activeCirclePlan: UnifiedPlan | null = null;
+  const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
   if (circleIds.length > 0) {
     const [
       { data: circleRows },
       { data: recentCircleMsgs },
       { data: recentPrayers },
       { data: recentDocs },
+      { data: recentPlanUpdates },
     ] = await Promise.all([
       supabase
         .from("circles")
-        .select("id, name, avatar_url")
+        .select("id, name, avatar_url, shared_plan_id")
         .in("id", circleIds),
       supabase
         .from("messages")
@@ -323,7 +349,76 @@ async function fetchHomeSnapshot(): Promise<HomeSnapshot> {
         .gte("updated_at", since24h)
         .order("updated_at", { ascending: false })
         .limit(20),
+      supabase
+        .from("circle_plan_updates")
+        .select("id, circle_id, actor_id, plan_id, plan_title, created_at")
+        .in("circle_id", circleIds)
+        .neq("actor_id", user.id)
+        .gte("created_at", since7d)
+        .order("created_at", { ascending: false })
+        .limit(10),
     ]);
+
+    const preferredCircleId =
+      typeof window !== "undefined"
+        ? localStorage.getItem("active_circle_id")
+        : null;
+    const sortedCircles = [...(circleRows || [])].sort((a, b) =>
+      a.id === preferredCircleId ? -1 : b.id === preferredCircleId ? 1 : 0
+    );
+    for (const c of sortedCircles) {
+      const parsed = parseSharedPlan(c.shared_plan_id);
+      if (parsed) {
+        activeCirclePlan =
+          parsed.kind === "preset"
+            ? {
+                id: `circle-${c.id}`,
+                title: parsed.preset.title,
+                presetId: parsed.preset.id,
+                books: [],
+                chaptersPerDay: parsed.preset.dailyTargetCount,
+                restDays: [],
+                source: "circle",
+                circleId: c.id,
+                circleName: c.name,
+              }
+            : {
+                id: `circle-${c.id}`,
+                title: parsed.custom.title,
+                presetId: null,
+                books: parsed.custom.books,
+                chaptersPerDay: parsed.custom.chaptersPerDay,
+                restDays: parsed.custom.restDays,
+                source: "circle",
+                circleId: c.id,
+                circleName: c.name,
+              };
+        break;
+      }
+    }
+
+    const circleById = new Map((circleRows || []).map((c) => [c.id, c]));
+    const seenPlanUpdateCircle = new Set<string>();
+    for (const pu of recentPlanUpdates || []) {
+      if (seenPlanUpdateCircle.has(pu.circle_id)) continue;
+      seenPlanUpdateCircle.add(pu.circle_id);
+      const dismissed =
+        typeof window !== "undefined" &&
+        localStorage.getItem(`dismissed_plan_update_${pu.id}`) === "1";
+      if (dismissed) continue;
+      const c = circleById.get(pu.circle_id);
+      if (!c) continue;
+      items.push({
+        kind: "circle-plan-update",
+        id: pu.id,
+        circleId: pu.circle_id,
+        circleName: c.name,
+        avatarUrl: c.avatar_url,
+        planId: pu.plan_id,
+        planTitle: pu.plan_title,
+        createdAt: pu.created_at,
+      });
+    }
 
     const latestActivityByCircle = new Map<string, string>();
     const recordCircleActivity = (cid: string | null, iso: string) => {
@@ -378,6 +473,7 @@ async function fetchHomeSnapshot(): Promise<HomeSnapshot> {
     planId,
     progressMap: map,
     activeCustomSchedule,
+    activeCirclePlan,
     updates: items.slice(0, 6),
   };
 }
@@ -403,6 +499,12 @@ export default function HomeClient({
   const [updates, setUpdates] = useState<UpdateItem[]>([]);
   const [activeCustomSchedule, setActiveCustomSchedule] =
     useState<CustomScheduleState | null>(null);
+  const [activeCirclePlan, setActiveCirclePlan] = useState<UnifiedPlan | null>(
+    null
+  );
+  const [planViewMode, setPlanViewMode] = useState<"personal" | "circle">(
+    "personal"
+  );
 
   const authResolved = initialUserId !== undefined || clientAuthResolved;
 
@@ -414,6 +516,7 @@ export default function HomeClient({
     setClientAuthResolved(true);
     setProgressMap(snap.progressMap);
     setActiveCustomSchedule(snap.activeCustomSchedule);
+    setActiveCirclePlan(snap.activeCirclePlan);
     setUpdates(snap.updates);
     setLoading(false);
   }, []);
@@ -537,40 +640,106 @@ export default function HomeClient({
     }
   }
 
+  function handleDismissPlanUpdate(updateId: string) {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`dismissed_plan_update_${updateId}`, "1");
+    }
+    setUpdates((prev) => prev.filter((u) => u.id !== updateId));
+  }
+
+  function handleJoinCirclePlanUpdate(u: CirclePlanUpdate) {
+    const parsed = parseSharedPlan(u.planId);
+    if (parsed) {
+      setActiveCirclePlan(
+        parsed.kind === "preset"
+          ? {
+              id: `circle-${u.circleId}`,
+              title: parsed.preset.title,
+              presetId: parsed.preset.id,
+              books: [],
+              chaptersPerDay: parsed.preset.dailyTargetCount,
+              restDays: [],
+              source: "circle",
+              circleId: u.circleId,
+              circleName: u.circleName,
+            }
+          : {
+              id: `circle-${u.circleId}`,
+              title: parsed.custom.title,
+              presetId: null,
+              books: parsed.custom.books,
+              chaptersPerDay: parsed.custom.chaptersPerDay,
+              restDays: parsed.custom.restDays,
+              source: "circle",
+              circleId: u.circleId,
+              circleName: u.circleName,
+            }
+      );
+      if (typeof window !== "undefined") {
+        localStorage.setItem("active_circle_id", u.circleId);
+      }
+      setPlanViewMode("circle");
+      setPresetStep(0);
+    }
+    handleDismissPlanUpdate(u.id);
+  }
+
+  const showingCirclePlan =
+    planViewMode === "circle" && activeCirclePlan !== null;
+
   const activePlan: ReadingPlanPreset =
     READING_PLAN_PRESETS.find((p) => p.id === planId) ||
     READING_PLAN_PRESETS[0];
 
-  const completedInPlan = activePlan.sequence.filter((c) =>
+  const effectiveSequence = showingCirclePlan
+    ? resolveUnifiedPlanSequence(activeCirclePlan)
+    : activePlan.sequence;
+  const effectiveDailyCount = showingCirclePlan
+    ? activeCirclePlan.chaptersPerDay
+    : activePlan.dailyTargetCount;
+
+  const completedInPlan = effectiveSequence.filter((c) =>
     progressMap.has(chapterKey(c.book, c.chapter))
   ).length;
-  const pct = Math.min(
-    100,
-    Math.round((completedInPlan / activePlan.sequence.length) * 100)
-  );
+  const pct =
+    effectiveSequence.length > 0
+      ? Math.min(
+          100,
+          Math.round((completedInPlan / effectiveSequence.length) * 100)
+        )
+      : 0;
 
-  const todayChapters = gatherPortionChapters(
-    activePlan.sequence,
-    progressMap,
-    recentlyCompletedKeys,
-    activePlan.dailyTargetCount
-  );
+  const todayChapters = showingCirclePlan
+    ? getNextUnreadChapters(
+        effectiveSequence,
+        progressMap,
+        effectiveDailyCount,
+        recentlyCompletedKeys
+      )
+    : gatherPortionChapters(
+        effectiveSequence,
+        progressMap,
+        recentlyCompletedKeys,
+        effectiveDailyCount
+      );
   const activePresetIndex = Math.min(
     presetStep,
     Math.max(0, todayChapters.length - 1)
   );
-  const nextUp = todayChapters[activePresetIndex] || activePlan.sequence[0];
+  const nextUp =
+    todayChapters[activePresetIndex] ||
+    effectiveSequence[0] || { book: "John", chapter: 1 };
 
   const nextKey = chapterKey(nextUp.book, nextUp.chapter);
   const isNextChecked = progressMap.has(nextKey);
 
-  const todayWeekday = new Date().getDay();
-  const isSabbathRestDay = Boolean(
-    activeCustomSchedule &&
-      activeCustomSchedule.rest_days.includes(todayWeekday)
-  );
+  const isSabbathRestDay = showingCirclePlan
+    ? isRestDay(activeCirclePlan.restDays)
+    : Boolean(activeCustomSchedule && isRestDay(activeCustomSchedule.rest_days));
 
-  const customSlotReadings = (activeCustomSchedule?.schedule_items || []).map(
+  const customSlotReadings = showingCirclePlan
+    ? []
+    : (activeCustomSchedule?.schedule_items || []).map(
     (slot, idx) => {
       const seq = resolveTrackSequence(slot.track);
       const chapters = gatherPortionChapters(
@@ -656,20 +825,54 @@ export default function HomeClient({
                 />
               </svg>
               <span className="text-[11px] font-semibold text-[#6B7280]">
-                {completedInPlan}/{activePlan.sequence.length}
+                {completedInPlan}/{effectiveSequence.length}
               </span>
             </div>
           </div>
           <p className="font-editorial text-base font-medium text-[#1F2937] mt-2">
-            {activeCustomSchedule
-              ? activeCustomSchedule.title
-              : activePlan.title}
+            {showingCirclePlan
+              ? activeCirclePlan.title
+              : activeCustomSchedule
+                ? activeCustomSchedule.title
+                : activePlan.title}
           </p>
+          {activeCirclePlan && (
+            <div className="mt-2.5 inline-flex items-center gap-1 p-0.5 rounded-xl bg-[#F4F1EA] dark:bg-[#1C1C1A] border border-[#E6E1D6] dark:border-[#2C2C28]">
+              <button
+                type="button"
+                onClick={() => {
+                  setPlanViewMode("personal");
+                  setPresetStep(0);
+                }}
+                className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                  !showingCirclePlan
+                    ? "bg-white dark:bg-[#262623] text-[#1F2937] dark:text-[#F3F2EE] shadow-2xs"
+                    : "text-[#6B7280] dark:text-[#A1A19A] hover:text-[#1F2937] dark:hover:text-[#F3F2EE]"
+                }`}
+              >
+                Personal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPlanViewMode("circle");
+                  setPresetStep(0);
+                }}
+                className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                  showingCirclePlan
+                    ? "bg-white dark:bg-[#262623] text-[#1F2937] dark:text-[#F3F2EE] shadow-2xs"
+                    : "text-[#6B7280] dark:text-[#A1A19A] hover:text-[#1F2937] dark:hover:text-[#F3F2EE]"
+                }`}
+              >
+                {activeCirclePlan.circleName || "Circle"}
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Compact Today's Reading Card (Supports Preset, Morning/Evening Split, or Sabbath Rest Day) */}
+        {/* Compact Today's Reading Card (Supports Preset, Circle Plan, Split, or Sabbath Rest Day) */}
         <section className="bg-white border border-[#E6E1D6] rounded-2xl p-5 space-y-4 shadow-2xs">
-          {isSabbathRestDay && activeCustomSchedule ? (
+          {isSabbathRestDay && (showingCirclePlan || activeCustomSchedule) ? (
             <div className="text-center py-3 space-y-2.5">
               <span className="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-[#EBF1EE] text-[#4A6B5D] mx-auto">
                 <Sparkles className="w-5 h-5" />
@@ -683,8 +886,12 @@ export default function HomeClient({
                 </h2>
                 <p className="text-xs text-[#6B7280] mt-1 max-w-sm mx-auto">
                   No chapters are scheduled today in{" "}
-                  <strong>{activeCustomSchedule.title}</strong>. Pause, reflect,
-                  or open the Reader freely whenever you wish.
+                  <strong>
+                    {showingCirclePlan
+                      ? activeCirclePlan.title
+                      : activeCustomSchedule?.title}
+                  </strong>
+                  . Pause, reflect, or open the Reader freely whenever you wish.
                 </p>
               </div>
               <div className="pt-1">
@@ -1070,6 +1277,51 @@ export default function HomeClient({
                     </div>
                     <ArrowRight className="w-3.5 h-3.5 text-[#6B7280] shrink-0" />
                   </Link>
+                ) : u.kind === "circle-plan-update" ? (
+                  <div
+                    key={u.id}
+                    className="w-full bg-white dark:bg-[#1C1C1A] border border-[#E6E1D6] dark:border-[#2C2C28] rounded-2xl p-3 flex items-center justify-between gap-3 shadow-2xs"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-[#DDE6E1] text-[#4A6B5D] flex items-center justify-center font-editorial text-sm font-semibold shrink-0">
+                        {u.avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={u.avatarUrl}
+                            alt={u.circleName}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          getInitials(u.circleName)
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-[#1F2937] dark:text-[#F3F2EE] truncate">
+                          {u.circleName} · New plan
+                        </p>
+                        <p className="text-[11px] text-[#6B7280] dark:text-[#A1A19A] truncate">
+                          {u.planTitle}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleJoinCirclePlanUpdate(u)}
+                        className="px-2.5 py-1.5 rounded-lg bg-[#4A6B5D] hover:bg-[#3D5A4E] dark:bg-[#63826A] dark:hover:bg-[#7C9A82] text-white text-[11px] font-semibold transition-colors cursor-pointer"
+                      >
+                        Join / Switch
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDismissPlanUpdate(u.id)}
+                        aria-label="Dismiss plan update"
+                        className="px-2 py-1.5 rounded-lg text-[11px] font-medium text-[#6B7280] dark:text-[#A1A19A] hover:text-[#1F2937] dark:hover:text-[#F3F2EE] cursor-pointer"
+                      >
+                        Later
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   <Link
                     key={u.id}
