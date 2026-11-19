@@ -621,12 +621,12 @@ export default function PlansPage() {
                           )}
                           <span>Use Plan</span>
                         </button>
-                        <Link
+                        {/* <Link
                           href={`/circles/${circle.id}`}
                           className="px-3 py-1.5 rounded-lg border border-[#E6E1D6] dark:border-[#2C2C28] text-xs font-medium text-[#6B7280] dark:text-[#A1A19A] hover:text-[#1F2937] dark:hover:text-[#F3F2EE] transition-colors"
                         >
                           Open
-                        </Link>
+                        </Link> */}
                       </div>
                     </div>
 
