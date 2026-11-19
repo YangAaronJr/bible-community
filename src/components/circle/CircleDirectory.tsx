@@ -11,7 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { getInitials } from "@/components/ui/Navbar";
-import { READING_PLAN_PRESETS } from "@/lib/plans/reading-plans";
+import { getSharedPlanTitle } from "@/lib/plans/reading-plans";
 import { createClient } from "@/lib/supabase/client";
 
 interface DirectoryCircle {
@@ -34,10 +34,7 @@ function generateInviteCode(): string {
 }
 
 function getPlanTitle(planId: string | null): string | null {
-  if (!planId) return null;
-  return (
-    READING_PLAN_PRESETS.find((p) => p.id === planId)?.title || planId
-  );
+  return getSharedPlanTitle(planId);
 }
 
 export default function CircleDirectory() {

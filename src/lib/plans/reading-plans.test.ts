@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   BIBLE_BOOKS,
   chapterKey,
+  encodeSharedCustomPlan,
+  getSharedPlanTitle,
+  parseSharedPlan,
   READING_PLAN_PRESETS,
   resolveTrackSequence,
 } from "./reading-plans";
@@ -72,6 +75,35 @@ describe("reading-plans", () => {
       expect(romans[15]).toEqual({ book: "Romans", chapter: 16 });
 
       expect(resolveTrackSequence("NonExistentBook")).toEqual([]);
+
+      const multi = resolveTrackSequence("Romans, Galatians, Ephesians");
+      expect(multi).toHaveLength(16 + 6 + 6);
+      expect(multi[0]).toEqual({ book: "Romans", chapter: 1 });
+      expect(multi[multi.length - 1]).toEqual({ book: "Ephesians", chapter: 6 });
+    });
+  });
+
+  describe("shared custom plan encoding & parsing", () => {
+    it("encodes and parses a shared custom plan and resolves its title", () => {
+      const encoded = encodeSharedCustomPlan({
+        title: "Epistles Study",
+        books: ["Romans", "Galatians"],
+        chaptersPerDay: 2,
+        restDays: [0],
+      });
+      const parsed = parseSharedPlan(encoded);
+      expect(parsed).toEqual({
+        kind: "custom",
+        custom: {
+          title: "Epistles Study",
+          books: ["Romans", "Galatians"],
+          chaptersPerDay: 2,
+          restDays: [0],
+        },
+      });
+      expect(getSharedPlanTitle(encoded)).toBe("Epistles Study");
+      expect(getSharedPlanTitle("nt-90")).toBe("New Testament in 90 Days");
+      expect(parseSharedPlan(null)).toBeNull();
     });
   });
 
