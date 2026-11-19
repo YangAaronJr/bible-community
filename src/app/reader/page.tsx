@@ -535,62 +535,41 @@ function ReaderContent() {
                 );
               }
 
-              const firstNote = segment.rangeNotes[0];
-              const anchorVerse = segment.verses[0];
               return (
                 <div
                   key={`range-${segment.start}-${segment.end}`}
-                  className="rounded-r-xl rounded-l-sm border-l-2 border-[#4A6B5D] bg-[#EBF1EE]/55 px-3.5 py-2 -mx-3 space-y-2"
+                  className="rounded-xl px-3 py-1.5 -mx-3 bg-[#EBF1EE]/70 hover:bg-[#EBF1EE] border-l-2 border-[#4A6B5D] transition-colors space-y-2"
                 >
-                  <div className="space-y-2">
-                    {segment.verses.map((v) => {
-                      const singleNotes = notes.filter(
-                        (n) => n.verse_start === v.verse && n.verse_end === v.verse
-                      );
-                      return (
-                        <div
-                          key={v.verse}
-                          onClick={() => setSelectedVerse(v)}
-                          className="rounded-lg px-1.5 py-0.5 -mx-1.5 hover:bg-[#EBF1EE]/80 transition-colors cursor-pointer"
-                        >
-                          <sup className="text-[11px] font-sans font-semibold text-[#4A6B5D] mr-2 select-none">
-                            {v.verse}
-                          </sup>
-                          <span>{v.text}</span>
-                          {singleNotes.length > 0 && (
-                            <span className="inline-flex items-center gap-1 ml-2 px-2 py-0.5 rounded-full bg-[#EBF1EE] text-[#4A6B5D] font-sans text-[10.5px] font-semibold align-middle">
-                              <MessageSquare className="w-2.5 h-2.5" />
-                              {singleNotes.length}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {anchorVerse && firstNote && (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedVerse(anchorVerse)}
-                      className="w-full text-left font-sans flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-white/80 hover:bg-white border border-[#CFE0D6] text-xs transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#EBF1EE] text-[#4A6B5D] text-[10.5px] font-semibold shrink-0">
-                          <MessageSquare className="w-2.5 h-2.5" />
-                          v{segment.start}–{segment.end} · {segment.rangeNotes.length}
-                        </span>
-                        <span className="text-[#4B5563] truncate">
-                          <strong className="font-semibold text-[#1F2937]">
-                            {firstNote.author_name}:
-                          </strong>{" "}
-                          {firstNote.content}
-                        </span>
+                  {segment.verses.map((v, idx) => {
+                    const singleNotes = notes.filter(
+                      (n) => n.verse_start === v.verse && n.verse_end === v.verse
+                    );
+                    const isLastInRange = idx === segment.verses.length - 1;
+                    return (
+                      <div
+                        key={v.verse}
+                        onClick={() => setSelectedVerse(v)}
+                        className="cursor-pointer"
+                      >
+                        <sup className="text-[11px] font-sans font-semibold text-[#4A6B5D] mr-2 select-none">
+                          {v.verse}
+                        </sup>
+                        <span>{v.text}</span>
+                        {singleNotes.length > 0 && (
+                          <span className="inline-flex items-center gap-1 ml-2 px-2 py-0.5 rounded-full bg-[#EBF1EE] text-[#4A6B5D] font-sans text-[10.5px] font-semibold align-middle">
+                            <MessageSquare className="w-2.5 h-2.5" />
+                            {singleNotes.length}
+                          </span>
+                        )}
+                        {isLastInRange && segment.rangeNotes.length > 0 && (
+                          <span className="inline-flex items-center gap-1 ml-2 px-2 py-0.5 rounded-full bg-[#EBF1EE] text-[#4A6B5D] font-sans text-[10.5px] font-semibold align-middle">
+                            <MessageSquare className="w-2.5 h-2.5" />
+                            {segment.rangeNotes.length}
+                          </span>
+                        )}
                       </div>
-                      <span className="text-[10.5px] font-semibold text-[#4A6B5D] shrink-0">
-                        View
-                      </span>
-                    </button>
-                  )}
+                    );
+                  })}
                 </div>
               );
             })}

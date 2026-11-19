@@ -139,7 +139,7 @@ export default function NewPlanFlow({
         title: selectedPreset.title,
         books: [],
         chaptersPerDay: presetChaptersPerDay,
-        restDays,
+        restDays: [],
       });
     } else {
       await onComplete({
@@ -164,7 +164,9 @@ export default function NewPlanFlow({
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#E6E1D6] dark:border-[#2C2C28] bg-white dark:bg-[#1C1C1A]">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-[#4A6B5D] dark:text-[#7C9A82]">
-              Step {step} of 2 · {mode === "circle" ? "Circle Plan" : "Personal Plan"}
+              {tab === "presets"
+                ? `Step 1 of 1 · ${mode === "circle" ? "Circle Plan" : "Personal Plan"}`
+                : `Step ${step} of 2 · ${mode === "circle" ? "Circle Plan" : "Personal Plan"}`}
             </p>
             <h2 className="font-editorial text-lg font-semibold text-[#1F2937] dark:text-[#F3F2EE]">
               {step === 1
@@ -512,14 +514,32 @@ export default function NewPlanFlow({
               >
                 Cancel
               </button>
-              <button
-                type="button"
-                disabled={!canProceedStep1}
-                onClick={() => setStep(2)}
-                className="px-5 py-2.5 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] dark:bg-[#63826A] dark:hover:bg-[#7C9A82] disabled:opacity-40 text-white text-xs font-semibold transition-colors cursor-pointer"
-              >
-                {tab === "presets" ? "Next: Sabbath Rest →" : "Next: Pace & Rest →"}
-              </button>
+              {tab === "presets" ? (
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={handleSubmit}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] dark:bg-[#63826A] dark:hover:bg-[#7C9A82] disabled:opacity-50 text-white text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  {saving ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-3.5 h-3.5" />
+                  )}
+                  <span>
+                    {mode === "circle" ? "Save Circle Plan" : "Start Plan"}
+                  </span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={!canProceedStep1}
+                  onClick={() => setStep(2)}
+                  className="px-5 py-2.5 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] dark:bg-[#63826A] dark:hover:bg-[#7C9A82] disabled:opacity-40 text-white text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Next: Pace & Rest →
+                </button>
+              )}
             </>
           ) : (
             <>
