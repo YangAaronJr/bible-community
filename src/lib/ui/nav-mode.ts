@@ -71,5 +71,5 @@ export function shouldShowBottomNav(
   }
 
   const variant = options?.variant ?? resolveNavbarVariant(pathname);
-  return variant !== "login" && !isImmersiveChatRoute(pathname);
+  return variant !== "login";
 }

@@ -99,15 +99,12 @@ describe("nav-mode", () => {
   });
 
   describe("shouldShowBottomNav", () => {
-    it("hides bottom nav on /login and immersive /dm/* routes by default", () => {
+    it("hides bottom nav on /login by default", () => {
       expect(shouldShowBottomNav("/login")).toBe(false);
       expect(shouldShowBottomNav("/login?next=/social")).toBe(false);
-      expect(shouldShowBottomNav("/dm/123")).toBe(false);
-      expect(shouldShowBottomNav("/dm/123?unread=1")).toBe(false);
-      expect(shouldShowBottomNav("/dm/")).toBe(false);
     });
 
-    it("shows bottom nav on home and non-DM inner routes by default", () => {
+    it("shows bottom nav on home and inner routes including /dm/* by default", () => {
       expect(shouldShowBottomNav("/")).toBe(true);
       expect(shouldShowBottomNav("/reader")).toBe(true);
       expect(shouldShowBottomNav("/plans")).toBe(true);
@@ -116,6 +113,8 @@ describe("nav-mode", () => {
       expect(shouldShowBottomNav("/social")).toBe(true);
       expect(shouldShowBottomNav("/circles/123")).toBe(true);
       expect(shouldShowBottomNav("/circles/123/settings")).toBe(true);
+      expect(shouldShowBottomNav("/dm/123")).toBe(true);
+      expect(shouldShowBottomNav("/dm/123?unread=1")).toBe(true);
       expect(shouldShowBottomNav("/members/u1")).toBe(true);
       expect(shouldShowBottomNav("/dms")).toBe(true);
     });

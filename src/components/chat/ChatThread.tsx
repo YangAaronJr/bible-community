@@ -1615,6 +1615,7 @@ export default function ChatThread({
           </div>
           <button
             type="button"
+            aria-label="Cancel compose mode"
             onClick={() => {
               setTopicTitle("");
               setComposeMode("text");
