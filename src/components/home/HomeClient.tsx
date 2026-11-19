@@ -780,9 +780,9 @@ export default function HomeClient({
         </div>
 
         {/* Warm Central Illustration / Progress Emblem */}
-        <div className="flex flex-col items-center text-center pt-1 pb-2">
-          <div className="relative w-28 h-28 flex items-center justify-center">
-            <svg className="w-28 h-28 -rotate-90" viewBox="0 0 100 100">
+        <div className="flex flex-col items-center text-center pt-1 pb-1">
+          <div className="relative w-32 h-32 flex items-center justify-center">
+            <svg className="w-32 h-32 -rotate-90" viewBox="0 0 100 100">
               <circle
                 cx="50"
                 cy="50"
@@ -803,13 +803,13 @@ export default function HomeClient({
                 strokeDashoffset={264 - (264 * pct) / 100}
               />
             </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <div className="absolute inset-0 flex items-center justify-center">
               <svg
-                className="w-7 h-7 text-[#4A6B5D] mb-0.5"
+                className="w-11 h-11 text-[#4A6B5D]"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="1.8"
+                strokeWidth="1.7"
               >
                 <path
                   d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
@@ -817,22 +817,14 @@ export default function HomeClient({
                   strokeLinejoin="round"
                 />
               </svg>
-              <span className="text-[11px] font-semibold text-[#6B7280]">
-                {completedInPlan}/{effectiveSequence.length}
-              </span>
             </div>
           </div>
-          <p className="font-editorial text-base font-medium text-[#1F2937] mt-2">
-            {activeCustomSchedule
-              ? activeCustomSchedule.title
-              : activePlan.title}
-          </p>
         </div>
 
         {/* Combined Personal & Circle Daily Readings Carousel */}
-        <section className="bg-white border border-[#E6E1D6] rounded-2xl p-5 space-y-4 shadow-2xs">
+        <section className="bg-white border border-[#E6E1D6] rounded-2xl p-4 space-y-2.5 shadow-2xs">
           {combinedReadings.length === 0 ? (
-            <div className="text-center py-3 space-y-2.5">
+            <div className="text-center py-2 space-y-2">
               <span className="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-[#EBF1EE] text-[#4A6B5D] mx-auto">
                 <Sparkles className="w-5 h-5" />
               </span>
@@ -889,14 +881,14 @@ export default function HomeClient({
                   return (
                     <div
                       key={key}
-                      className="w-full shrink-0 snap-start space-y-4"
+                      className="w-full shrink-0 snap-start space-y-2.5"
                     >
-                      <div className="space-y-1">
+                      <div className="space-y-0.5">
                         <p className="text-[11px] font-medium text-[#6B7280] truncate">
                           {sourceLabel}
                           {item.timeOfDay ? ` · ${item.timeOfDay}` : ""}
                         </p>
-                        <h2 className="font-editorial text-2xl font-semibold text-[#1F2937] truncate">
+                        <h2 className="font-editorial text-xl font-semibold text-[#1F2937] truncate">
                           {item.book} {item.chapter}
                         </h2>
                       </div>
@@ -906,7 +898,7 @@ export default function HomeClient({
                           href={`/reader?book=${encodeURIComponent(
                             item.book
                           )}&chapter=${item.chapter}`}
-                          className="py-2.5 px-3 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
+                          className="py-2 px-3 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
                         >
                           <BookOpen className="w-3.5 h-3.5" />
                           <span>Read in App</span>
@@ -914,7 +906,7 @@ export default function HomeClient({
                         {!authResolved ? (
                           <span
                             aria-hidden="true"
-                            className="w-full h-[38px] rounded-xl border border-[#E6E1D6] bg-[#F4F1EA] animate-pulse"
+                            className="w-full h-[34px] rounded-xl border border-[#E6E1D6] bg-[#F4F1EA] animate-pulse"
                           />
                         ) : userId ? (
                           <button
@@ -924,7 +916,7 @@ export default function HomeClient({
                               togglePhysicalBible(item.book, item.chapter)
                             }
                             title="Mark chapter as read using your physical Bible"
-                            className={`py-2.5 px-3 rounded-xl border text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                            className={`py-2 px-3 rounded-xl border text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
                               checked
                                 ? "bg-[#EBF1EE] border-[#CFE0D6] text-[#3D5A4E]"
                                 : "bg-transparent border-[#E6E1D6] text-[#6B7280] hover:bg-[#F4F1EA] hover:text-[#1F2937]"
