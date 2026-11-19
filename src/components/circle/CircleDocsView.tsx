@@ -6,6 +6,7 @@ import StarterKit from "@tiptap/starter-kit";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import {
+  AlertTriangle,
   ChevronLeft,
   ChevronRight,
   FileText,
@@ -67,7 +68,8 @@ export default function CircleDocsView({
   const [docs, setDocs] = useState<CircleDocRow[]>([]);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saveState, setSaveState] = useState<"saved" | "saving">("saved");
+  const [saveState, setSaveState] = useState<"saved" | "saving" | "conflict">("saved");
+  const [conflictDoc, setConflictDoc] = useState<CircleDocRow | null>(null);
   const [creating, setCreating] = useState(false);
   const [confirmDeleteDocId, setConfirmDeleteDocId] = useState<string | null>(
     null
@@ -79,6 +81,10 @@ export default function CircleDocsView({
   const activeDocIdRef = useRef<string | null>(null);
   const lastSyncedDocIdRef = useRef<string | null>(null);
   const suppressUpdateRef = useRef(false);
+  const baseUpdatedAtRef = useRef<Record<string, string>>({});
+  const pendingContentRef = useRef<{ docId: string; html: string } | null>(null);
+  const pendingTitleRef = useRef<{ docId: string; title: string } | null>(null);
+  const conflictDocIdRef = useRef<string | null>(null);
 
   const memberMap = new Map(members.map((m) => [m.user_id, m]));
   const activeDoc = docs.find((d) => d.id === activeDocId) || null;
@@ -86,6 +92,91 @@ export default function CircleDocsView({
   useEffect(() => {
     activeDocIdRef.current = activeDocId;
   }, [activeDocId]);
+
+  useEffect(() => {
+    conflictDocIdRef.current = conflictDoc?.id ?? null;
+  }, [conflictDoc]);
+
+  const flushPendingSave = useCallback(
+    async (targetDocId?: string): Promise<boolean> => {
+      const pendingContent = pendingContentRef.current;
+      const pendingTitle = pendingTitleRef.current;
+      const docId =
+        targetDocId ?? pendingContent?.docId ?? pendingTitle?.docId ?? null;
+      if (!docId) return true;
+
+      const hasContent = pendingContent?.docId === docId;
+      const hasTitle = pendingTitle?.docId === docId;
+      if (!hasContent && !hasTitle) return true;
+
+      if (hasContent && contentSaveTimerRef.current) {
+        clearTimeout(contentSaveTimerRef.current);
+        contentSaveTimerRef.current = null;
+      }
+      if (hasTitle && titleSaveTimerRef.current) {
+        clearTimeout(titleSaveTimerRef.current);
+        titleSaveTimerRef.current = null;
+      }
+
+      const updatePayload: {
+        content?: string;
+        title?: string;
+        updated_by: string;
+        updated_at: string;
+      } = {
+        updated_by: currentUserId,
+        updated_at: new Date().toISOString(),
+      };
+      if (hasContent) updatePayload.content = pendingContent.html;
+      if (hasTitle) updatePayload.title = pendingTitle.title;
+
+      const supabase = createClient();
+      const expectedUpdatedAt = baseUpdatedAtRef.current[docId];
+      let query = supabase
+        .from("circle_docs")
+        .update(updatePayload)
+        .eq("id", docId);
+      if (expectedUpdatedAt) {
+        query = query.eq("updated_at", expectedUpdatedAt);
+      }
+
+      const { data: updatedRows, error } = await query.select(
+        "id, circle_id, title, content, updated_by, updated_at, created_at"
+      );
+
+      if (error) {
+        return false;
+      }
+
+      if (!updatedRows || updatedRows.length === 0) {
+        const { data: latestRow } = await supabase
+          .from("circle_docs")
+          .select("id, circle_id, title, content, updated_by, updated_at, created_at")
+          .eq("id", docId)
+          .single();
+
+        if (latestRow) {
+          setConflictDoc(latestRow);
+          setSaveState("conflict");
+        }
+        return false;
+      }
+
+      const savedRow = updatedRows[0] as CircleDocRow;
+      baseUpdatedAtRef.current[docId] = savedRow.updated_at;
+      if (pendingContentRef.current?.docId === docId) {
+        pendingContentRef.current = null;
+      }
+      if (pendingTitleRef.current?.docId === docId) {
+        pendingTitleRef.current = null;
+      }
+      setDocs((prev) => prev.map((d) => (d.id === docId ? savedRow : d)));
+      setConflictDoc((prev) => (prev?.id === docId ? null : prev));
+      setSaveState("saved");
+      return true;
+    },
+    [currentUserId]
+  );
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -103,7 +194,8 @@ export default function CircleDocsView({
       if (!docId) return;
 
       const html = ed.getHTML();
-      setSaveState("saving");
+      pendingContentRef.current = { docId, html };
+      setSaveState((prev) => (prev === "conflict" ? "conflict" : "saving"));
       setDocs((prev) =>
         prev.map((d) =>
           d.id === docId
@@ -118,17 +210,10 @@ export default function CircleDocsView({
       );
 
       if (contentSaveTimerRef.current) clearTimeout(contentSaveTimerRef.current);
-      contentSaveTimerRef.current = setTimeout(async () => {
-        const supabase = createClient();
-        await supabase
-          .from("circle_docs")
-          .update({
-            content: html,
-            updated_by: currentUserId,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", docId);
-        setSaveState("saved");
+      contentSaveTimerRef.current = setTimeout(() => {
+        contentSaveTimerRef.current = null;
+        if (conflictDocIdRef.current === docId) return;
+        void flushPendingSave(docId);
       }, 650);
     },
   });
@@ -141,18 +226,28 @@ export default function CircleDocsView({
       .eq("circle_id", circle.id)
       .order("updated_at", { ascending: false });
 
-    setDocs(data || []);
+    const rows = data || [];
+    for (const row of rows) {
+      baseUpdatedAtRef.current[row.id] = row.updated_at;
+    }
+    setDocs(rows);
     setLoading(false);
   }, [circle.id]);
 
   useEffect(() => {
     setLoading(true);
     loadDocs();
+    const handlePageHide = () => {
+      void flushPendingSave();
+    };
+    window.addEventListener("pagehide", handlePageHide);
     return () => {
+      window.removeEventListener("pagehide", handlePageHide);
+      void flushPendingSave();
       if (contentSaveTimerRef.current) clearTimeout(contentSaveTimerRef.current);
       if (titleSaveTimerRef.current) clearTimeout(titleSaveTimerRef.current);
     };
-  }, [loadDocs]);
+  }, [loadDocs, flushPendingSave]);
 
   // Sync editor content only when switching docs
   useEffect(() => {
@@ -187,17 +282,35 @@ export default function CircleDocsView({
         (payload) => {
           if (payload.eventType === "INSERT") {
             const inserted = payload.new as CircleDocRow;
+            baseUpdatedAtRef.current[inserted.id] = inserted.updated_at;
             setDocs((prev) =>
               prev.some((d) => d.id === inserted.id) ? prev : [inserted, ...prev]
             );
           } else if (payload.eventType === "UPDATE") {
             const updated = payload.new as CircleDocRow;
             if (updated.updated_by === currentUserId) return;
+
+            const isActiveDoc = updated.id === activeDocIdRef.current;
+            const hasPendingForDoc =
+              pendingContentRef.current?.docId === updated.id ||
+              pendingTitleRef.current?.docId === updated.id;
+            const isFocusedOnActive = Boolean(isActiveDoc && editor?.isFocused);
+
+            if (isActiveDoc && (hasPendingForDoc || isFocusedOnActive)) {
+              const localHtml = editor?.getHTML() ?? "";
+              if (localHtml !== updated.content) {
+                setConflictDoc(updated);
+                setSaveState("conflict");
+                return;
+              }
+            }
+
+            baseUpdatedAtRef.current[updated.id] = updated.updated_at;
             setDocs((prev) =>
               prev.map((d) => (d.id === updated.id ? updated : d))
             );
             if (
-              updated.id === activeDocIdRef.current &&
+              isActiveDoc &&
               editor &&
               !editor.isFocused &&
               editor.getHTML() !== updated.content
@@ -245,6 +358,7 @@ export default function CircleDocsView({
 
     setCreating(false);
     if (created) {
+      baseUpdatedAtRef.current[created.id] = created.updated_at;
       setDocs((prev) => [created, ...prev]);
       setActiveDocId(created.id);
     }
@@ -253,33 +367,85 @@ export default function CircleDocsView({
   async function handleTitleChange(nextTitle: string) {
     if (!activeDoc) return;
     const docId = activeDoc.id;
+    pendingTitleRef.current = { docId, title: nextTitle };
     setDocs((prev) =>
       prev.map((d) => (d.id === docId ? { ...d, title: nextTitle } : d))
     );
-    setSaveState("saving");
+    setSaveState((prev) => (prev === "conflict" ? "conflict" : "saving"));
     if (titleSaveTimerRef.current) clearTimeout(titleSaveTimerRef.current);
-    titleSaveTimerRef.current = setTimeout(async () => {
-      const supabase = createClient();
-      await supabase
-        .from("circle_docs")
-        .update({
-          title: nextTitle,
-          updated_by: currentUserId,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", docId);
-      setSaveState("saved");
+    titleSaveTimerRef.current = setTimeout(() => {
+      titleSaveTimerRef.current = null;
+      if (conflictDocIdRef.current === docId) return;
+      void flushPendingSave(docId);
     }, 500);
+  }
+
+  async function handleExitDoc() {
+    if (activeDoc) {
+      const ok = await flushPendingSave(activeDoc.id);
+      if (!ok) return;
+    }
+    setConflictDoc(null);
+    setActiveDocId(null);
+  }
+
+  function handleLoadLatest() {
+    if (!conflictDoc) return;
+    const latest = conflictDoc;
+    baseUpdatedAtRef.current[latest.id] = latest.updated_at;
+    if (pendingContentRef.current?.docId === latest.id) {
+      pendingContentRef.current = null;
+    }
+    if (pendingTitleRef.current?.docId === latest.id) {
+      pendingTitleRef.current = null;
+    }
+    if (contentSaveTimerRef.current) {
+      clearTimeout(contentSaveTimerRef.current);
+      contentSaveTimerRef.current = null;
+    }
+    if (titleSaveTimerRef.current) {
+      clearTimeout(titleSaveTimerRef.current);
+      titleSaveTimerRef.current = null;
+    }
+    setDocs((prev) => prev.map((d) => (d.id === latest.id ? latest : d)));
+    if (editor && editor.getHTML() !== latest.content) {
+      suppressUpdateRef.current = true;
+      editor.commands.setContent(latest.content || "<p></p>");
+      suppressUpdateRef.current = false;
+    }
+    setConflictDoc(null);
+    setSaveState("saved");
+  }
+
+  async function handleForceOverwrite() {
+    if (!conflictDoc || !activeDoc) return;
+    baseUpdatedAtRef.current[activeDoc.id] = conflictDoc.updated_at;
+    if (!pendingContentRef.current && editor) {
+      pendingContentRef.current = {
+        docId: activeDoc.id,
+        html: editor.getHTML(),
+      };
+    }
+    setConflictDoc(null);
+    setSaveState("saving");
+    await flushPendingSave(activeDoc.id);
   }
 
   async function handleDeleteDoc(docId: string) {
     setDeletingDocId(docId);
+    if (pendingContentRef.current?.docId === docId) {
+      pendingContentRef.current = null;
+    }
+    if (pendingTitleRef.current?.docId === docId) {
+      pendingTitleRef.current = null;
+    }
     const supabase = createClient();
     await supabase.from("circle_docs").delete().eq("id", docId);
     setDocs((prev) => prev.filter((d) => d.id !== docId));
     setConfirmDeleteDocId(null);
     setDeletingDocId(null);
     if (activeDocIdRef.current === docId) {
+      setConflictDoc(null);
       setActiveDocId(null);
     }
   }
@@ -291,12 +457,17 @@ export default function CircleDocsView({
         ? memberMap.get(activeDoc.updated_by)!.display_name.split(" ")[0]
         : "Circle";
 
+    const conflictEditorName =
+      conflictDoc?.updated_by && memberMap.get(conflictDoc.updated_by)
+        ? memberMap.get(conflictDoc.updated_by)!.display_name.split(" ")[0]
+        : "Another member";
+
     return (
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <button
             type="button"
-            onClick={() => setActiveDocId(null)}
+            onClick={handleExitDoc}
             className="inline-flex items-center gap-1 text-xs font-semibold text-[#4A6B5D] hover:opacity-80 cursor-pointer"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -304,8 +475,18 @@ export default function CircleDocsView({
           </button>
 
           <div className="flex items-center gap-3 text-[11px]">
-            <span className="text-[#6B7280]">
-              {saveState === "saving" ? "Saving..." : "Saved to Circle"}
+            <span
+              className={
+                saveState === "conflict"
+                  ? "text-amber-700 font-medium"
+                  : "text-[#6B7280]"
+              }
+            >
+              {saveState === "saving"
+                ? "Saving..."
+                : saveState === "conflict"
+                ? "Sync conflict"
+                : "Saved to Circle"}
             </span>
             <button
               type="button"
@@ -318,6 +499,34 @@ export default function CircleDocsView({
             </button>
           </div>
         </div>
+
+        {conflictDoc && conflictDoc.id === activeDoc.id && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-900">
+            <div className="flex items-center gap-2 min-w-0">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>
+                <strong>{conflictEditorName}</strong> updated this doc while you
+                were editing.
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleLoadLatest}
+                className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 font-semibold text-amber-900 hover:bg-amber-100 cursor-pointer"
+              >
+                Load latest
+              </button>
+              <button
+                type="button"
+                onClick={handleForceOverwrite}
+                className="px-2.5 py-1 rounded-lg bg-amber-700 font-semibold text-white hover:bg-amber-800 cursor-pointer"
+              >
+                Overwrite with mine
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="bg-white border border-[#E6E1D6] rounded-2xl shadow-2xs flex flex-col overflow-hidden min-h-[60dvh]">
           <div className="px-3.5 py-2 bg-[#F4F1EA] border-b border-[#E6E1D6] flex items-center gap-1.5 text-[11px] text-[#6B7280]">
