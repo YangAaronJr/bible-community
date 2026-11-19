@@ -904,7 +904,6 @@ export default function HomeClient({
                           <BookOpen className="w-3.5 h-3.5" />
                           <span>Read in App</span>
                         </Link>
-
                         {!authResolved ? (
                           <span
                             aria-hidden="true"
@@ -917,6 +916,7 @@ export default function HomeClient({
                             onClick={() =>
                               togglePhysicalBible(item.book, item.chapter)
                             }
+                            title="Mark chapter as read using your physical Bible"
                             className={`py-2.5 px-3 rounded-xl border text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
                               checked
                                 ? "bg-[#EBF1EE] border-[#4A6B5D] text-[#3D5A4E]"

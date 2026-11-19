@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowLeft, Check, Loader2, Sparkles, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Loader2, Sparkles, X } from "lucide-react";
 import {
   BIBLE_BOOKS,
   READING_PLAN_PRESETS,
@@ -40,6 +40,21 @@ export default function NewPlanFlow({
   const [selectedPresetId, setSelectedPresetId] = useState<
     "nt-90" | "gospels-psalms"
   >(initialPresetId);
+  const [expandedPresetIds, setExpandedPresetIds] = useState<Set<string>>(
+    () => new Set()
+  );
+
+  function togglePresetDescription(presetId: string) {
+    setExpandedPresetIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(presetId)) {
+        next.delete(presetId);
+      } else {
+        next.add(presetId);
+      }
+      return next;
+    });
+  }
 
   const [customTitle, setCustomTitle] = useState("");
   const [testamentFilter, setTestamentFilter] = useState<"NT" | "OT">("NT");
@@ -191,11 +206,19 @@ export default function NewPlanFlow({
                 <div className="space-y-2.5">
                   {READING_PLAN_PRESETS.map((preset) => {
                     const isSelected = selectedPresetId === preset.id;
+                    const isExpanded = expandedPresetIds.has(preset.id);
                     return (
-                      <button
+                      <div
                         key={preset.id}
-                        type="button"
+                        role="button"
+                        tabIndex={0}
                         onClick={() => handlePresetSelect(preset)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            handlePresetSelect(preset);
+                          }
+                        }}
                         className={`w-full text-left p-4 rounded-xl border transition-colors cursor-pointer ${
                           isSelected
                             ? "bg-[#EBF1EE]/70 dark:bg-[#202923] border-[#4A6B5D] dark:border-[#63826A]"
@@ -203,15 +226,12 @@ export default function NewPlanFlow({
                         }`}
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div className="space-y-1">
+                          <div className="space-y-1 min-w-0 flex-1">
                             <h3 className="font-editorial text-base font-semibold text-[#1F2937] dark:text-[#F3F2EE]">
                               {preset.title}
                             </h3>
                             <p className="text-xs font-medium text-[#4A6B5D] dark:text-[#7C9A82]">
                               {preset.subtitle}
-                            </p>
-                            <p className="text-xs text-[#6B7280] dark:text-[#A1A19A] leading-relaxed pt-0.5">
-                              {preset.description}
                             </p>
                           </div>
                           <span
@@ -224,7 +244,32 @@ export default function NewPlanFlow({
                             {isSelected && <Check className="w-3 h-3" />}
                           </span>
                         </div>
-                      </button>
+
+                        <div className="mt-2 pt-2 border-t border-[#E6E1D6]/60 dark:border-[#2C2C28]">
+                          <button
+                            type="button"
+                            aria-expanded={isExpanded}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              togglePresetDescription(preset.id);
+                            }}
+                            className="inline-flex items-center gap-1 text-[11px] font-medium text-[#6B7280] dark:text-[#A1A19A] hover:text-[#1F2937] dark:hover:text-[#F3F2EE] transition-colors cursor-pointer"
+                          >
+                            <span>{isExpanded ? "Hide description" : "View description"}</span>
+                            <ChevronDown
+                              className={`w-3.5 h-3.5 transition-transform ${
+                                isExpanded ? "rotate-180" : ""
+                              }`}
+                            />
+                          </button>
+
+                          {isExpanded && (
+                            <p className="text-xs text-[#6B7280] dark:text-[#A1A19A] leading-relaxed pt-1.5">
+                              {preset.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
@@ -267,18 +312,45 @@ export default function NewPlanFlow({
                           </button>
                         ))}
                       </div>
-                      {selectedBooks.length > 0 && (
+                      <div className="flex items-center gap-2.5">
                         <button
                           type="button"
-                          onClick={() => setSelectedBooks([])}
-                          className="text-xs font-medium text-[#6B7280] dark:text-[#A1A19A] hover:text-[#1F2937] dark:hover:text-[#F3F2EE] cursor-pointer"
+                          onClick={() => {
+                            const visibleNames = filteredBooks.map((b) => b.name);
+                            const allSelected = visibleNames.every((n) =>
+                              selectedBooks.includes(n)
+                            );
+                            if (allSelected) {
+                              setSelectedBooks((prev) =>
+                                prev.filter((n) => !visibleNames.includes(n))
+                              );
+                            } else {
+                              setSelectedBooks((prev) =>
+                                Array.from(new Set([...prev, ...visibleNames]))
+                              );
+                            }
+                          }}
+                          className="text-xs font-medium text-[#4A6B5D] dark:text-[#7C9A82] hover:underline cursor-pointer"
                         >
-                          Clear ({selectedBooks.length})
+                          {filteredBooks.every((b) =>
+                            selectedBooks.includes(b.name)
+                          )
+                            ? `Deselect ${testamentFilter}`
+                            : `Select all ${testamentFilter}`}
                         </button>
-                      )}
+                        {selectedBooks.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedBooks([])}
+                            className="text-xs font-medium text-[#6B7280] dark:text-[#A1A19A] hover:text-[#1F2937] dark:hover:text-[#F3F2EE] cursor-pointer"
+                          >
+                            Clear ({selectedBooks.length})
+                          </button>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-1.5 max-h-52 overflow-y-auto pr-1">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-60 overflow-y-auto pr-1">
                       {filteredBooks.map((book) => {
                         const active = selectedBooks.includes(book.name);
                         return (
@@ -286,13 +358,22 @@ export default function NewPlanFlow({
                             key={book.name}
                             type="button"
                             onClick={() => toggleBook(book.name)}
-                            className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer flex items-center justify-between gap-1.5 min-w-0 ${
                               active
                                 ? "bg-[#4A6B5D] dark:bg-[#63826A] text-white border-[#4A6B5D] dark:border-[#63826A]"
                                 : "bg-white dark:bg-[#1C1C1A] text-[#1F2937] dark:text-[#F3F2EE] border-[#E6E1D6] dark:border-[#2C2C28] hover:border-[#4A6B5D]/60"
                             }`}
                           >
-                            {book.name}
+                            <span className="truncate">{book.name}</span>
+                            <span
+                              className={`text-[10px] shrink-0 ${
+                                active
+                                  ? "text-white/80"
+                                  : "text-[#6B7280] dark:text-[#A1A19A]"
+                              }`}
+                            >
+                              {book.chapters}ch
+                            </span>
                           </button>
                         );
                       })}

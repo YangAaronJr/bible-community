@@ -474,11 +474,7 @@ export default function MemberProfileView({
   }
 
   function handleBack() {
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      router.back();
-    } else {
-      router.push("/social");
-    }
+    router.push("/social");
   }
 
   if (loading) {

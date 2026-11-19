@@ -355,7 +355,6 @@ export default function PlansPage() {
       <main className="flex-1 max-w-2xl w-full mx-auto px-4 sm:px-6 pt-6 space-y-6">
         <QuietPageHeader
           title="Reading Plans"
-          subtitle="Unhurried rhythm in the Word"
           rightSlot={
             <button
               type="button"
@@ -390,9 +389,7 @@ export default function PlansPage() {
                   </h3>
                 </div>
                 <p className="text-xs text-[#6B7280] dark:text-[#A1A19A]">
-                  {activeDailyCount}{" "}
-                  {activeDailyCount === 1 ? "chapter" : "chapters"}/day ·{" "}
-                  {activeDone}/{activeTotal} chapters ({activePct}%)
+                  {activeDailyCount} ch/day · {activeDone}/{activeTotal} ({activePct}%)
                 </p>
               </div>
 
@@ -424,12 +421,12 @@ export default function PlansPage() {
               />
             </div>
 
-            {/* Sabbath Rest Days */}
-            <div className="pt-1 space-y-2">
-              <span className="block text-[11px] font-semibold uppercase tracking-wider text-[#6B7280] dark:text-[#A1A19A]">
-                Sabbath Rest Days
-              </span>
-              {activeCustom ? (
+            {/* Sabbath Rest Days (custom plans only) */}
+            {activeCustom && (
+              <div className="pt-1 space-y-2">
+                <span className="block text-[11px] font-semibold uppercase tracking-wider text-[#6B7280] dark:text-[#A1A19A]">
+                  Rest Days
+                </span>
                 <div className="grid grid-cols-7 gap-1.5">
                   {WEEKDAYS.map((w) => {
                     const isRest = activeCustom.rest_days.includes(w.day);
@@ -450,20 +447,8 @@ export default function PlansPage() {
                     );
                   })}
                 </div>
-              ) : (
-                <p className="text-xs text-[#6B7280] dark:text-[#A1A19A]">
-                  No rest days on preset plans. Create a custom plan via{" "}
-                  <button
-                    type="button"
-                    onClick={() => setNewPlanOpen(true)}
-                    className="underline text-[#4A6B5D] dark:text-[#7C9A82] cursor-pointer"
-                  >
-                    + New Plan
-                  </button>{" "}
-                  to set Sabbath rest days.
-                </p>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </section>
 
@@ -558,10 +543,10 @@ export default function PlansPage() {
             <div className="bg-white dark:bg-[#1C1C1A] border border-[#E6E1D6] dark:border-[#2C2C28] rounded-2xl p-5 flex items-center justify-between gap-3">
               <div className="space-y-0.5">
                 <p className="text-sm font-medium text-[#1F2937] dark:text-[#F3F2EE]">
-                  No active Circle plan
+                  No Circle plan
                 </p>
                 <p className="text-xs text-[#6B7280] dark:text-[#A1A19A]">
-                  Set a shared reading plan inside any Circle&apos;s settings.
+                  Set one in Circle settings.
                 </p>
               </div>
               <Link
@@ -617,8 +602,7 @@ export default function PlansPage() {
                           {title}
                         </h3>
                         <p className="text-xs text-[#6B7280] dark:text-[#A1A19A]">
-                          {daily} {daily === 1 ? "chapter" : "chapters"}/day ·{" "}
-                          {done}/{seq.length} chapters ({pct}%)
+                          {daily} ch/day · {done}/{seq.length} ({pct}%)
                           {restLabels ? ` · Rest: ${restLabels}` : ""}
                         </p>
                       </div>
@@ -637,12 +621,12 @@ export default function PlansPage() {
                           )}
                           <span>Use Plan</span>
                         </button>
-                        <Link
+                        {/* <Link
                           href={`/circles/${circle.id}`}
                           className="px-3 py-1.5 rounded-lg border border-[#E6E1D6] dark:border-[#2C2C28] text-xs font-medium text-[#6B7280] dark:text-[#A1A19A] hover:text-[#1F2937] dark:hover:text-[#F3F2EE] transition-colors"
                         >
                           Open
-                        </Link>
+                        </Link> */}
                       </div>
                     </div>
 

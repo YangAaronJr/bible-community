@@ -997,7 +997,7 @@ export default function ChatThread({
               <ChevronLeft className="w-4 h-4" />
             </button>
           )}
-          {(mode === "dm" || mode === "circle-dm") && peerUserId && (
+          {(mode === "dm" || mode === "circle-dm") && peerUserId ? (
             <Link href={`/members/${peerUserId}`} className="shrink-0">
               {renderChatAvatar(
                 {
@@ -1008,7 +1008,18 @@ export default function ChatThread({
                 32
               )}
             </Link>
-          )}
+          ) : mode === "circle" && headerAvatarUrl !== undefined ? (
+            <span className="shrink-0">
+              {renderChatAvatar(
+                {
+                  user_id: threadId,
+                  display_name: title,
+                  avatar_url: headerAvatarUrl,
+                },
+                32
+              )}
+            </span>
+          ) : null}
           <div className="min-w-0">
             <h2 className="text-[14px] leading-tight font-semibold text-[#1F2937] truncate">
               {title}

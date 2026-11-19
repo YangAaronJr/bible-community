@@ -494,10 +494,11 @@ function ReaderContent() {
             </span>
           </button>
 
-          <button
+          {/* <button
             type="button"
             disabled={savingCompletion}
             onClick={() => handleComplete(true)}
+            title="Mark chapter as read using your physical Bible"
             className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-colors cursor-pointer ${
               completionState.completed && completionState.physical
                 ? "bg-[#B47B44] text-white"
@@ -505,8 +506,12 @@ function ReaderContent() {
             }`}
           >
             <BookMarked className="w-3.5 h-3.5" />
-            <span>Physical Bible</span>
-          </button>
+            <span>
+              {completionState.completed && completionState.physical
+                ? "Read (Print)"
+                : "Mark Read (Print)"}
+            </span>
+          </button> */}
         </div>
       </div>
 
