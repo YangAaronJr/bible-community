@@ -479,7 +479,7 @@ export default function CircleWorkspace({
             ) : (
               <Menu className="w-4 h-4" />
             )}
-            {hasUnreadGroupChat && subView !== "chat" && (
+            {hasUnreadGroupChat && (
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#4A6B5D]" />
             )}
           </button>
@@ -543,11 +543,7 @@ export default function CircleWorkspace({
               <button
                 type="button"
                 onClick={() => openSubView("chat")}
-                className={`w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between transition-colors cursor-pointer ${
-                  subView === "chat"
-                    ? "bg-[#EBF1EE] text-[#4A6B5D] font-semibold"
-                    : "text-[#1F2937] hover:bg-[#F4F1EA]"
-                }`}
+                className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between transition-colors cursor-pointer text-[#1F2937] hover:bg-[#F4F1EA]"
               >
                 <span className="flex items-center gap-2.5">
                   <MessageSquare className="w-4 h-4 shrink-0" />
