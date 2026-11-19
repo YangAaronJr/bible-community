@@ -378,6 +378,75 @@ export type Database = {
         };
         Relationships: [];
       };
+      reading_plans: {
+        Row: {
+          id: string;
+          owner_id: string;
+          circle_id: string | null;
+          preset_id: string | null;
+          title: string;
+          books: string[];
+          chapters_per_day: number;
+          rest_days: number[];
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          circle_id?: string | null;
+          preset_id?: string | null;
+          title: string;
+          books?: string[];
+          chapters_per_day?: number;
+          rest_days?: number[];
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          circle_id?: string | null;
+          preset_id?: string | null;
+          title?: string;
+          books?: string[];
+          chapters_per_day?: number;
+          rest_days?: number[];
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      circle_plan_updates: {
+        Row: {
+          id: string;
+          circle_id: string;
+          actor_id: string;
+          plan_id: string;
+          plan_title: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          circle_id: string;
+          actor_id: string;
+          plan_id: string;
+          plan_title: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          circle_id?: string;
+          actor_id?: string;
+          plan_id?: string;
+          plan_title?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       circle_docs: {
         Row: {
           id: string;

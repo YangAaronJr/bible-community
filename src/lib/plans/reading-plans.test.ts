@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   BIBLE_BOOKS,
+  BIBLE_MOVEMENTS,
   chapterKey,
   encodeSharedCustomPlan,
+  getActivePlanBooks,
+  getNextUnreadChapters,
   getSharedPlanTitle,
+  isRestDay,
   parseSharedPlan,
   READING_PLAN_PRESETS,
   resolveTrackSequence,
+  resolveUnifiedPlanSequence,
 } from "./reading-plans";
 
 describe("reading-plans", () => {
@@ -111,6 +116,48 @@ describe("reading-plans", () => {
     it("formats canonical book::chapter keys", () => {
       expect(chapterKey("Psalms", 23)).toBe("Psalms::23");
       expect(chapterKey("1 John", 4)).toBe("1 John::4");
+    });
+  });
+
+  describe("unified plan & Journey helpers", () => {
+    it("covers all 66 books across BIBLE_MOVEMENTS", () => {
+      const movementBooks = BIBLE_MOVEMENTS.flatMap((m) => m.books);
+      expect(movementBooks).toHaveLength(66);
+      expect(new Set(movementBooks).size).toBe(66);
+    });
+
+    it("resolves unified plan sequences and next unread chapters", () => {
+      const seq = resolveUnifiedPlanSequence({
+        presetId: null,
+        books: ["Jude", "Philemon"],
+      });
+      expect(seq).toEqual([
+        { book: "Jude", chapter: 1 },
+        { book: "Philemon", chapter: 1 },
+      ]);
+
+      const completed = new Set(["Jude::1"]);
+      expect(getNextUnreadChapters(seq, completed, 1)).toEqual([
+        { book: "Philemon", chapter: 1 },
+      ]);
+      expect(
+        getNextUnreadChapters(seq, new Set(["Jude::1", "Philemon::1"]), 1)
+      ).toEqual([{ book: "Jude", chapter: 1 }]);
+    });
+
+    it("collects active plan books and checks Sabbath rest days", () => {
+      const books = getActivePlanBooks([
+        { presetId: "gospels-psalms", books: [] },
+        { presetId: null, books: ["Romans"] },
+      ]);
+      expect(books.has("Matthew")).toBe(true);
+      expect(books.has("Psalms")).toBe(true);
+      expect(books.has("Romans")).toBe(true);
+      expect(books.has("Genesis")).toBe(false);
+
+      const sunday = new Date("2026-11-15T12:00:00Z"); // Sunday = 0
+      expect(isRestDay([0], sunday)).toBe(true);
+      expect(isRestDay([3], sunday)).toBe(false);
     });
   });
 });
