@@ -461,12 +461,11 @@ export default function CircleWorkspace({
           : "px-5 py-4 space-y-5 relative"
       }
     >
-      {/* Circle Header with Left Side Dropdown Menu (☰) */}
-      <header
-        className={`flex items-center justify-between gap-2 border-b border-[#E6E1D6] relative shrink-0 ${
-          isChatView ? "px-3 sm:px-4 py-2" : "pt-1 pb-3"
-        }`}
-      >
+      {/* Circle Header with Left Side Dropdown Menu (☰) — hidden in Group Chat to avoid double header */}
+      {!isChatView && (
+        <header
+          className="flex items-center justify-between gap-2 border-b border-[#E6E1D6] relative shrink-0 pt-1 pb-3"
+        >
         <div className="flex items-center gap-2.5 min-w-0">
           <button
             type="button"
@@ -605,7 +604,8 @@ export default function CircleWorkspace({
             </nav>
           </>
         )}
-      </header>
+        </header>
+      )}
 
       {/* Main Circle Sub-View */}
       {subView === "chat" && userId ? (
