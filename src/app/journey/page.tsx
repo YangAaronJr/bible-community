@@ -91,10 +91,16 @@ export default function JourneyPage() {
       <Navbar variant="inner" />
 
       <main className="flex-1 max-w-xl w-full mx-auto px-5 pt-4 pb-6 space-y-5">
-        <QuietPageHeader
-          title="Journey"
-          subtitle="Running the race with endurance · Hebrews 12:1–2"
-        />
+        <QuietPageHeader />
+
+        <div className="text-center space-y-1 pt-1">
+          <h1 className="font-serif text-3xl font-medium tracking-tight text-[#1F2937] dark:text-[#F3F2EE]">
+            Journey
+          </h1>
+          <p className="text-xs text-[#6B7280] dark:text-[#A3A19A]">
+            Hebrews 12:1–2 · Pressing on
+          </p>
+        </div>
 
         {loading ? (
           <div className="p-8 bg-white dark:bg-[#1E1E1C] border border-[#E6E1D6] dark:border-[#2E2E2B] rounded-2xl flex items-center justify-center text-xs text-[#6B7280] dark:text-[#A3A19A]">
