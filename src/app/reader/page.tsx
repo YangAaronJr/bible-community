@@ -29,6 +29,7 @@ import {
   type BibleVerse,
 } from "@/lib/bible/bible-api";
 import { BIBLE_BOOKS } from "@/lib/plans/reading-plans";
+import { usePinchFontSize } from "@/lib/hooks/usePinchFontSize";
 import { createClient } from "@/lib/supabase/client";
 
 interface CircleSummary {
@@ -111,6 +112,10 @@ function ReaderContent() {
     null
   );
   const closeSelector = useCallback(() => setOpenSelector(null), []);
+  const { containerRef: readerRef, scale: readerTextScale } =
+    usePinchFontSize<HTMLElement>({
+      storageKey: "bible-community-reader-text-scale",
+    });
 
   // Sync URL query params if changed externally
   const bookRef = useRef(book);
@@ -413,7 +418,10 @@ function ReaderContent() {
       </div>
 
       {/* Single-Column Scripture Reader */}
-      <article className="bg-white border border-[#E6E1D6] rounded-2xl p-6 sm:p-8 shadow-2xs">
+      <article
+        ref={readerRef}
+        className="bg-white border border-[#E6E1D6] rounded-2xl p-6 sm:p-8 shadow-2xs"
+      >
         {loadingText ? (
           <div className="py-16 flex flex-col items-center justify-center gap-2 text-xs text-[#6B7280]">
             <Loader2 className="w-5 h-5 animate-spin text-[#4A6B5D]" />
@@ -426,7 +434,12 @@ function ReaderContent() {
             {textError}
           </div>
         ) : (
-          <div className="space-y-3 font-editorial text-[17.5px] leading-relaxed text-[#1F2937]">
+          <div
+            style={{
+              fontSize: `${Math.round(17.5 * readerTextScale * 10) / 10}px`,
+            }}
+            className="space-y-3 font-editorial leading-relaxed text-[#1F2937]"
+          >
             {verses.map((v) => {
               const verseNotes = notes.filter(
                 (n) => n.verse_start <= v.verse && n.verse_end >= v.verse
