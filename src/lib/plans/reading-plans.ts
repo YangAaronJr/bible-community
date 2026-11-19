@@ -427,3 +427,59 @@ export function isRestDay(
 ): boolean {
   return restDays.includes(date.getDay());
 }
+
+export type DailyReadingSource = "personal" | "circle" | "both";
+
+export interface CombinedDailyReading {
+  book: string;
+  chapter: number;
+  source: DailyReadingSource;
+  circleName?: string;
+  timeOfDay?: "Morning" | "Evening";
+}
+
+/**
+ * Combines Personal and Circle daily readings into a single ordered list
+ * without duplicate chapters, marking overlapping chapters as "both".
+ */
+export function combineDailyReadings(
+  personalChapters: Array<ChapterRef & { timeOfDay?: "Morning" | "Evening" }>,
+  circleChapters: ChapterRef[],
+  circleName?: string
+): CombinedDailyReading[] {
+  const byKey = new Map<string, CombinedDailyReading>();
+  const result: CombinedDailyReading[] = [];
+
+  for (const ch of personalChapters) {
+    const key = chapterKey(ch.book, ch.chapter);
+    if (byKey.has(key)) continue;
+    const item: CombinedDailyReading = {
+      book: ch.book,
+      chapter: ch.chapter,
+      source: "personal",
+      ...(ch.timeOfDay ? { timeOfDay: ch.timeOfDay } : {}),
+    };
+    byKey.set(key, item);
+    result.push(item);
+  }
+
+  for (const ch of circleChapters) {
+    const key = chapterKey(ch.book, ch.chapter);
+    const existing = byKey.get(key);
+    if (existing) {
+      existing.source = "both";
+      if (circleName) existing.circleName = circleName;
+      continue;
+    }
+    const item: CombinedDailyReading = {
+      book: ch.book,
+      chapter: ch.chapter,
+      source: "circle",
+      ...(circleName ? { circleName } : {}),
+    };
+    byKey.set(key, item);
+    result.push(item);
+  }
+
+  return result;
+}
