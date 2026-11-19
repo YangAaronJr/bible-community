@@ -118,7 +118,15 @@ export default function NewPlanFlow({
 
   const totalChapters =
     tab === "presets" ? selectedPreset.sequence.length : totalCustomChapters;
-  const estDays = Math.max(1, Math.ceil(totalChapters / chaptersPerDay));
+  const presetChaptersPerDay: 1 | 2 | 3 =
+    selectedPreset.dailyTargetCount === 3
+      ? 3
+      : selectedPreset.dailyTargetCount === 2
+        ? 2
+        : 1;
+  const effectiveChaptersPerDay =
+    tab === "presets" ? presetChaptersPerDay : chaptersPerDay;
+  const estDays = Math.max(1, Math.ceil(totalChapters / effectiveChaptersPerDay));
   const canProceedStep1 =
     tab === "presets" || (tab === "custom" && selectedBooks.length > 0);
 
@@ -130,8 +138,8 @@ export default function NewPlanFlow({
         presetId: selectedPreset.id,
         title: selectedPreset.title,
         books: [],
-        chaptersPerDay,
-        restDays,
+        chaptersPerDay: presetChaptersPerDay,
+        restDays: [],
       });
     } else {
       await onComplete({
@@ -156,10 +164,16 @@ export default function NewPlanFlow({
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#E6E1D6] dark:border-[#2C2C28] bg-white dark:bg-[#1C1C1A]">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-[#4A6B5D] dark:text-[#7C9A82]">
-              Step {step} of 2 · {mode === "circle" ? "Circle Plan" : "Personal Plan"}
+              {tab === "presets"
+                ? `Step 1 of 1 · ${mode === "circle" ? "Circle Plan" : "Personal Plan"}`
+                : `Step ${step} of 2 · ${mode === "circle" ? "Circle Plan" : "Personal Plan"}`}
             </p>
             <h2 className="font-editorial text-lg font-semibold text-[#1F2937] dark:text-[#F3F2EE]">
-              {step === 1 ? "Choose a reading plan" : "Daily pace & Sabbath rest"}
+              {step === 1
+                ? "Choose a reading plan"
+                : tab === "presets"
+                  ? "Preset pace & Sabbath rest"
+                  : "Daily pace & Sabbath rest"}
             </h2>
           </div>
           <button
@@ -409,35 +423,52 @@ export default function NewPlanFlow({
                 </span>
               </div>
 
-              {/* Chapters per day: 1 / 2 / 3 */}
-              <div className="space-y-2">
-                <span className="block text-[11px] font-semibold uppercase tracking-wider text-[#6B7280] dark:text-[#A1A19A]">
-                  Chapters per day
-                </span>
-                <div className="grid grid-cols-3 gap-2">
-                  {([1, 2, 3] as const).map((count) => {
-                    const active = chaptersPerDay === count;
-                    return (
-                      <button
-                        key={count}
-                        type="button"
-                        onClick={() => setChaptersPerDay(count)}
-                        className={`py-2.5 px-3 rounded-xl border text-sm font-semibold transition-colors cursor-pointer ${
-                          active
-                            ? "bg-[#4A6B5D] dark:bg-[#63826A] text-white border-[#4A6B5D] dark:border-[#63826A]"
-                            : "bg-white dark:bg-[#1C1C1A] text-[#1F2937] dark:text-[#F3F2EE] border-[#E6E1D6] dark:border-[#2C2C28] hover:border-[#4A6B5D]/60"
-                        }`}
-                      >
-                        {count} {count === 1 ? "chapter" : "chapters"}
-                      </button>
-                    );
-                  })}
+              {/* Chapters per day: locked for fixed presets, selectable for custom */}
+              {tab === "presets" ? (
+                <div className="space-y-1.5">
+                  <span className="block text-[11px] font-semibold uppercase tracking-wider text-[#6B7280] dark:text-[#A1A19A]">
+                    Built-in preset pace
+                  </span>
+                  <div className="p-3.5 rounded-xl bg-[#F4F1EA] dark:bg-[#1C1C1A] border border-[#E6E1D6] dark:border-[#2C2C28] flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-[#1F2937] dark:text-[#F3F2EE]">
+                      {presetChaptersPerDay}{" "}
+                      {presetChaptersPerDay === 1 ? "chapter" : "chapters"} per day
+                    </span>
+                    <span className="text-xs text-[#6B7280] dark:text-[#A1A19A]">
+                      ~{estDays} reading {estDays === 1 ? "day" : "days"}
+                    </span>
+                  </div>
                 </div>
-                <p className="text-xs text-[#6B7280] dark:text-[#A1A19A]">
-                  Unhurried pace: ~{estDays} reading{" "}
-                  {estDays === 1 ? "day" : "days"}
-                </p>
-              </div>
+              ) : (
+                <div className="space-y-2">
+                  <span className="block text-[11px] font-semibold uppercase tracking-wider text-[#6B7280] dark:text-[#A1A19A]">
+                    Chapters per day
+                  </span>
+                  <div className="grid grid-cols-3 gap-2">
+                    {([1, 2, 3] as const).map((count) => {
+                      const active = chaptersPerDay === count;
+                      return (
+                        <button
+                          key={count}
+                          type="button"
+                          onClick={() => setChaptersPerDay(count)}
+                          className={`py-2.5 px-3 rounded-xl border text-sm font-semibold transition-colors cursor-pointer ${
+                            active
+                              ? "bg-[#4A6B5D] dark:bg-[#63826A] text-white border-[#4A6B5D] dark:border-[#63826A]"
+                              : "bg-white dark:bg-[#1C1C1A] text-[#1F2937] dark:text-[#F3F2EE] border-[#E6E1D6] dark:border-[#2C2C28] hover:border-[#4A6B5D]/60"
+                          }`}
+                        >
+                          {count} {count === 1 ? "chapter" : "chapters"}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-[#6B7280] dark:text-[#A1A19A]">
+                    Unhurried pace: ~{estDays} reading{" "}
+                    {estDays === 1 ? "day" : "days"}
+                  </p>
+                </div>
+              )}
 
               {/* Sabbath rest day pills */}
               <div className="space-y-2">
@@ -483,14 +514,32 @@ export default function NewPlanFlow({
               >
                 Cancel
               </button>
-              <button
-                type="button"
-                disabled={!canProceedStep1}
-                onClick={() => setStep(2)}
-                className="px-5 py-2.5 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] dark:bg-[#63826A] dark:hover:bg-[#7C9A82] disabled:opacity-40 text-white text-xs font-semibold transition-colors cursor-pointer"
-              >
-                Next: Pace & Rest →
-              </button>
+              {tab === "presets" ? (
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={handleSubmit}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] dark:bg-[#63826A] dark:hover:bg-[#7C9A82] disabled:opacity-50 text-white text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  {saving ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-3.5 h-3.5" />
+                  )}
+                  <span>
+                    {mode === "circle" ? "Save Circle Plan" : "Start Plan"}
+                  </span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={!canProceedStep1}
+                  onClick={() => setStep(2)}
+                  className="px-5 py-2.5 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] dark:bg-[#63826A] dark:hover:bg-[#7C9A82] disabled:opacity-40 text-white text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Next: Pace & Rest →
+                </button>
+              )}
             </>
           ) : (
             <>
