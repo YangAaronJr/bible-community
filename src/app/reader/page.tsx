@@ -481,7 +481,7 @@ function ReaderContent() {
             </span>
           </button>
 
-          <button
+          {/* <button
             type="button"
             disabled={savingCompletion}
             onClick={() => handleComplete(true)}
@@ -498,7 +498,7 @@ function ReaderContent() {
                 ? "Read (Print)"
                 : "Mark Read (Print)"}
             </span>
-          </button>
+          </button> */}
         </div>
       </div>
 

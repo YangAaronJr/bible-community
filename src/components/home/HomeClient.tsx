@@ -1163,12 +1163,14 @@ export default function HomeClient({
                         <Check className="w-4 h-4" />
                         <span>Completed</span>
                       </>
-                    ) : (
+                    ) : 
+                    (
                       <>
                         <BookMarked className="w-4 h-4" />
-                        <span>Mark Read (Print)</span>
+                        <span>Mark Read</span>
                       </>
-                    )}
+                    )
+                    }
                   </button>
                 ) : (
                   <Link
