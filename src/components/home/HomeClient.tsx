@@ -7,13 +7,9 @@ import {
   BookMarked,
   BookOpen,
   Check,
-  ChevronLeft,
-  ChevronRight,
   Loader2,
-  Moon,
   SlidersHorizontal,
   Sparkles,
-  Sun,
 } from "lucide-react";
 import Navbar, { getInitials } from "@/components/ui/Navbar";
 import { OliveBranchMark } from "@/components/ui/MinimalIllustrations";
@@ -22,6 +18,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   READING_PLAN_PRESETS,
   chapterKey,
+  combineDailyReadings,
   getNextUnreadChapters,
   isRestDay,
   parseSharedPlan,
@@ -493,17 +490,12 @@ export default function HomeClient({
   const [recentlyCompletedKeys, setRecentlyCompletedKeys] = useState<
     Set<string>
   >(new Set());
-  const [presetStep, setPresetStep] = useState(0);
-  const [slotSteps, setSlotSteps] = useState<Record<number, number>>({});
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [updates, setUpdates] = useState<UpdateItem[]>([]);
   const [activeCustomSchedule, setActiveCustomSchedule] =
     useState<CustomScheduleState | null>(null);
   const [activeCirclePlan, setActiveCirclePlan] = useState<UnifiedPlan | null>(
     null
-  );
-  const [planViewMode, setPlanViewMode] = useState<"personal" | "circle">(
-    "personal"
   );
 
   const authResolved = initialUserId !== undefined || clientAuthResolved;
@@ -678,25 +670,15 @@ export default function HomeClient({
       if (typeof window !== "undefined") {
         localStorage.setItem("active_circle_id", u.circleId);
       }
-      setPlanViewMode("circle");
-      setPresetStep(0);
     }
     handleDismissPlanUpdate(u.id);
   }
-
-  const showingCirclePlan =
-    planViewMode === "circle" && activeCirclePlan !== null;
 
   const activePlan: ReadingPlanPreset =
     READING_PLAN_PRESETS.find((p) => p.id === planId) ||
     READING_PLAN_PRESETS[0];
 
-  const effectiveSequence = showingCirclePlan
-    ? resolveUnifiedPlanSequence(activeCirclePlan)
-    : activePlan.sequence;
-  const effectiveDailyCount = showingCirclePlan
-    ? activeCirclePlan.chaptersPerDay
-    : activePlan.dailyTargetCount;
+  const effectiveSequence = activePlan.sequence;
 
   const completedInPlan = effectiveSequence.filter((c) =>
     progressMap.has(chapterKey(c.book, c.chapter))
@@ -709,60 +691,45 @@ export default function HomeClient({
         )
       : 0;
 
-  const todayChapters = showingCirclePlan
-    ? getNextUnreadChapters(
-        effectiveSequence,
-        progressMap,
-        effectiveDailyCount,
-        recentlyCompletedKeys
-      )
-    : gatherPortionChapters(
-        effectiveSequence,
-        progressMap,
-        recentlyCompletedKeys,
-        effectiveDailyCount
-      );
-  const activePresetIndex = Math.min(
-    presetStep,
-    Math.max(0, todayChapters.length - 1)
+  const personalRest = Boolean(
+    activeCustomSchedule && isRestDay(activeCustomSchedule.rest_days)
   );
-  const nextUp =
-    todayChapters[activePresetIndex] ||
-    effectiveSequence[0] || { book: "John", chapter: 1 };
+  const circleRest = Boolean(
+    activeCirclePlan && isRestDay(activeCirclePlan.restDays)
+  );
 
-  const nextKey = chapterKey(nextUp.book, nextUp.chapter);
-  const isNextChecked = progressMap.has(nextKey);
-
-  const isSabbathRestDay = showingCirclePlan
-    ? isRestDay(activeCirclePlan.restDays)
-    : Boolean(activeCustomSchedule && isRestDay(activeCustomSchedule.rest_days));
-
-  const customSlotReadings = showingCirclePlan
+  const personalChapters = personalRest
     ? []
-    : (activeCustomSchedule?.schedule_items || []).map(
-    (slot, idx) => {
-      const seq = resolveTrackSequence(slot.track);
-      const chapters = gatherPortionChapters(
-        seq,
-        progressMap,
-        recentlyCompletedKeys,
-        slot.chaptersPerDay || 1
-      );
-      const safeChapters =
-        chapters.length > 0 ? chapters : [{ book: "John", chapter: 1 }];
-      const activeIdx = Math.min(
-        slotSteps[idx] ?? 0,
-        Math.max(0, safeChapters.length - 1)
-      );
-      const activeChapter = safeChapters[activeIdx] || safeChapters[0];
-      return {
-        ...slot,
-        chapters: safeChapters,
-        activeIdx,
-        book: activeChapter.book,
-        chapter: activeChapter.chapter,
-      };
-    }
+    : activeCustomSchedule && activeCustomSchedule.schedule_items.length > 0
+      ? activeCustomSchedule.schedule_items.flatMap((slot) =>
+          gatherPortionChapters(
+            resolveTrackSequence(slot.track),
+            progressMap,
+            recentlyCompletedKeys,
+            slot.chaptersPerDay || 1
+          ).map((ch) => ({ ...ch, timeOfDay: slot.timeOfDay }))
+        )
+      : gatherPortionChapters(
+          activePlan.sequence,
+          progressMap,
+          recentlyCompletedKeys,
+          activePlan.dailyTargetCount
+        );
+
+  const circleChapters =
+    !activeCirclePlan || circleRest
+      ? []
+      : getNextUnreadChapters(
+          resolveUnifiedPlanSequence(activeCirclePlan),
+          progressMap,
+          activeCirclePlan.chaptersPerDay,
+          recentlyCompletedKeys
+        );
+
+  const combinedReadings = combineDailyReadings(
+    personalChapters,
+    circleChapters,
+    activeCirclePlan?.circleName
   );
 
   return (
@@ -830,49 +797,15 @@ export default function HomeClient({
             </div>
           </div>
           <p className="font-editorial text-base font-medium text-[#1F2937] mt-2">
-            {showingCirclePlan
-              ? activeCirclePlan.title
-              : activeCustomSchedule
-                ? activeCustomSchedule.title
-                : activePlan.title}
+            {activeCustomSchedule
+              ? activeCustomSchedule.title
+              : activePlan.title}
           </p>
-          {activeCirclePlan && (
-            <div className="mt-2.5 inline-flex items-center gap-1 p-0.5 rounded-xl bg-[#F4F1EA] dark:bg-[#1C1C1A] border border-[#E6E1D6] dark:border-[#2C2C28]">
-              <button
-                type="button"
-                onClick={() => {
-                  setPlanViewMode("personal");
-                  setPresetStep(0);
-                }}
-                className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
-                  !showingCirclePlan
-                    ? "bg-white dark:bg-[#262623] text-[#1F2937] dark:text-[#F3F2EE] shadow-2xs"
-                    : "text-[#6B7280] dark:text-[#A1A19A] hover:text-[#1F2937] dark:hover:text-[#F3F2EE]"
-                }`}
-              >
-                Personal
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setPlanViewMode("circle");
-                  setPresetStep(0);
-                }}
-                className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
-                  showingCirclePlan
-                    ? "bg-white dark:bg-[#262623] text-[#1F2937] dark:text-[#F3F2EE] shadow-2xs"
-                    : "text-[#6B7280] dark:text-[#A1A19A] hover:text-[#1F2937] dark:hover:text-[#F3F2EE]"
-                }`}
-              >
-                {activeCirclePlan.circleName || "Circle"}
-              </button>
-            </div>
-          )}
         </div>
 
-        {/* Compact Today's Reading Card (Supports Preset, Circle Plan, Split, or Sabbath Rest Day) */}
-        <section className="bg-white border border-[#E6E1D6] rounded-2xl p-5 space-y-4 shadow-2xs">
-          {isSabbathRestDay && (showingCirclePlan || activeCustomSchedule) ? (
+        {/* Combined Personal & Circle Daily Readings Carousel */}
+        <section className="bg-white border border-[#E6E1D6] rounded-2xl p-5 space-y-3.5 shadow-2xs">
+          {combinedReadings.length === 0 ? (
             <div className="text-center py-3 space-y-2.5">
               <span className="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-[#EBF1EE] text-[#4A6B5D] mx-auto">
                 <Sparkles className="w-5 h-5" />
@@ -887,9 +820,9 @@ export default function HomeClient({
                 <p className="text-xs text-[#6B7280] mt-1 max-w-sm mx-auto">
                   No chapters are scheduled today in{" "}
                   <strong>
-                    {showingCirclePlan
-                      ? activeCirclePlan.title
-                      : activeCustomSchedule?.title}
+                    {activeCustomSchedule?.title ||
+                      activeCirclePlan?.title ||
+                      activePlan.title}
                   </strong>
                   . Pause, reflect, or open the Reader freely whenever you wish.
                 </p>
@@ -904,278 +837,116 @@ export default function HomeClient({
                 </Link>
               </div>
             </div>
-          ) : activeCustomSchedule && customSlotReadings.length > 0 ? (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
+          ) : (
+            <>
+              <div className="flex items-center justify-between gap-2">
                 <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[#4A6B5D]">
-                  Today&apos;s Split Schedule
+                  Today&apos;s Reading
                 </span>
-                <span className="text-[11px] text-[#6B7280]">
-                  {activeCustomSchedule.title}
-                </span>
+                {combinedReadings.length > 1 && (
+                  <span className="text-[11px] text-[#6B7280]">
+                    {combinedReadings.length} chapters · Scroll
+                  </span>
+                )}
               </div>
 
-              <div className="divide-y divide-[#E6E1D6]">
-                {customSlotReadings.map((slot, idx) => {
-                  const key = chapterKey(slot.book, slot.chapter);
+              <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 -mx-1 px-1">
+                {combinedReadings.map((item) => {
+                  const key = chapterKey(item.book, item.chapter);
                   const checked = progressMap.has(key);
+                  const chipLabel =
+                    item.source === "both"
+                      ? `Personal · ${item.circleName || "Circle"}`
+                      : item.source === "circle"
+                        ? item.circleName || "Circle"
+                        : "Personal";
+                  const chipStyle =
+                    item.source === "circle"
+                      ? "bg-[#FBF5EE] border-[#E7D3BC] text-[#B47B44]"
+                      : item.source === "both"
+                        ? "bg-[#EBF1EE] border-[#CFE0D6] text-[#3D5A4E]"
+                        : "bg-[#F4F1EA] border-[#E6E1D6] text-[#4A6B5D]";
+
                   return (
                     <div
-                      key={`${slot.timeOfDay}-${idx}`}
-                      className="py-3 first:pt-1 last:pb-0 space-y-2.5"
+                      key={key}
+                      className={`snap-start rounded-2xl border border-[#E6E1D6] bg-[#FAF9F6] p-4 space-y-3.5 flex flex-col justify-between ${
+                        combinedReadings.length === 1
+                          ? "w-full"
+                          : "min-w-[85%] sm:min-w-[300px] shrink-0"
+                      }`}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="w-7 h-7 rounded-xl bg-[#F4F1EA] flex items-center justify-center shrink-0">
-                            {slot.timeOfDay === "Morning" ? (
-                              <Sun className="w-3.5 h-3.5 text-[#B47B44]" />
-                            ) : (
-                              <Moon className="w-3.5 h-3.5 text-[#4A6B5D]" />
-                            )}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[10px] font-semibold truncate max-w-[75%] ${chipStyle}`}
+                          >
+                            {chipLabel}
                           </span>
-                          <div className="min-w-0">
-                            <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[#6B7280]">
-                              {slot.timeOfDay} · {slot.chaptersPerDay} ch
+                          {item.timeOfDay && (
+                            <span className="text-[10px] font-medium text-[#6B7280] shrink-0">
+                              {item.timeOfDay}
                             </span>
-                            <h3 className="font-editorial text-lg font-semibold text-[#1F2937] leading-tight truncate">
-                              {slot.book} {slot.chapter}
-                            </h3>
-                          </div>
+                          )}
                         </div>
-
-                        {slot.chapters.length > 1 && (
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setSlotSteps((prev) => ({
-                                  ...prev,
-                                  [idx]:
-                                    (slot.activeIdx - 1 + slot.chapters.length) %
-                                    slot.chapters.length,
-                                }))
-                              }
-                              aria-label={`Previous ${slot.timeOfDay} chapter`}
-                              className="w-7 h-7 rounded-full bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] flex items-center justify-center text-[#1F2937] cursor-pointer"
-                            >
-                              <ChevronLeft className="w-3.5 h-3.5" />
-                            </button>
-                            <span className="text-[11px] font-medium text-[#6B7280] tabular-nums min-w-[34px] text-center">
-                              {slot.activeIdx + 1} of {slot.chapters.length}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setSlotSteps((prev) => ({
-                                  ...prev,
-                                  [idx]:
-                                    (slot.activeIdx + 1) % slot.chapters.length,
-                                }))
-                              }
-                              aria-label={`Next ${slot.timeOfDay} chapter`}
-                              className="w-7 h-7 rounded-full bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] flex items-center justify-center text-[#1F2937] cursor-pointer"
-                            >
-                              <ChevronRight className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        )}
+                        <h2 className="font-editorial text-2xl font-semibold text-[#1F2937] truncate">
+                          {item.book} {item.chapter}
+                        </h2>
                       </div>
-
-                      {slot.chapters.length > 1 && (
-                        <div className="flex items-center justify-center gap-1.5">
-                          {slot.chapters.map((ch, cIdx) => {
-                            const chDone = progressMap.has(
-                              chapterKey(ch.book, ch.chapter)
-                            );
-                            const isActiveDot = cIdx === slot.activeIdx;
-                            return (
-                              <button
-                                key={chapterKey(ch.book, ch.chapter)}
-                                type="button"
-                                onClick={() =>
-                                  setSlotSteps((prev) => ({
-                                    ...prev,
-                                    [idx]: cIdx,
-                                  }))
-                                }
-                                aria-label={`Go to ${ch.book} ${ch.chapter}`}
-                                className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                                  isActiveDot
-                                    ? "w-4 bg-[#4A6B5D]"
-                                    : chDone
-                                      ? "w-1.5 bg-[#7C9A82]"
-                                      : "w-1.5 bg-[#E6E1D6]"
-                                }`}
-                              />
-                            );
-                          })}
-                        </div>
-                      )}
 
                       <div className="grid grid-cols-2 gap-2.5">
                         <Link
                           href={`/reader?book=${encodeURIComponent(
-                            slot.book
-                          )}&chapter=${slot.chapter}`}
-                          className="py-2.5 px-3 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
+                            item.book
+                          )}&chapter=${item.chapter}`}
+                          className="py-2.5 px-3 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white text-xs font-medium flex items-center justify-center gap-1.5 shadow-2xs transition-colors"
                         >
                           <BookOpen className="w-3.5 h-3.5" />
                           <span>Read in App</span>
                         </Link>
-                        <button
-                          type="button"
-                          disabled={busyKey === key}
-                          onClick={() =>
-                            togglePhysicalBible(slot.book, slot.chapter)
-                          }
-                          className={`py-2.5 px-3 rounded-xl border text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                            checked
-                              ? "bg-[#EBF1EE] border-[#4A6B5D] text-[#3D5A4E]"
-                              : "bg-[#FBF5EE] border-[#E7D3BC] text-[#B47B44] hover:bg-[#F6EAD9]"
-                          }`}
-                        >
-                          {checked ? (
-                            <>
-                              <Check className="w-3.5 h-3.5" />
-                              <span>Completed</span>
-                            </>
-                          ) : (
-                            <>
-                              <BookMarked className="w-3.5 h-3.5" />
-                              <span>Physical Bible</span>
-                            </>
-                          )}
-                        </button>
+
+                        {!authResolved ? (
+                          <span
+                            aria-hidden="true"
+                            className="w-full h-[38px] rounded-xl border border-[#E6E1D6] bg-[#F4F1EA] animate-pulse"
+                          />
+                        ) : userId ? (
+                          <button
+                            type="button"
+                            disabled={busyKey === key}
+                            onClick={() =>
+                              togglePhysicalBible(item.book, item.chapter)
+                            }
+                            className={`py-2.5 px-3 rounded-xl border text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                              checked
+                                ? "bg-[#EBF1EE] border-[#4A6B5D] text-[#3D5A4E]"
+                                : "bg-[#FBF5EE] border-[#E7D3BC] text-[#B47B44] hover:bg-[#F6EAD9]"
+                            }`}
+                          >
+                            {checked ? (
+                              <>
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Completed</span>
+                              </>
+                            ) : (
+                              <>
+                                <BookMarked className="w-3.5 h-3.5" />
+                                <span>Physical Bible</span>
+                              </>
+                            )}
+                          </button>
+                        ) : (
+                          <Link
+                            href="/login"
+                            className="py-2.5 px-3 rounded-xl border border-[#E6E1D6] bg-[#FAF9F6] text-[#1F2937] text-xs font-medium flex items-center justify-center gap-1.5"
+                          >
+                            <span>Sign In</span>
+                          </Link>
+                        )}
                       </div>
                     </div>
                   );
                 })}
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[#4A6B5D]">
-                    Today&apos;s Reading
-                  </span>
-                  <h2 className="font-editorial text-2xl font-semibold text-[#1F2937] mt-0.5 truncate">
-                    {nextUp.book} {nextUp.chapter}
-                  </h2>
-                </div>
-                {todayChapters.length > 1 ? (
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPresetStep(
-                          (activePresetIndex - 1 + todayChapters.length) %
-                            todayChapters.length
-                        )
-                      }
-                      aria-label="Previous daily chapter"
-                      className="w-8 h-8 rounded-full bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] flex items-center justify-center text-[#1F2937] cursor-pointer"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </button>
-                    <span className="text-xs font-medium text-[#6B7280] tabular-nums min-w-[38px] text-center">
-                      {activePresetIndex + 1} of {todayChapters.length}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPresetStep(
-                          (activePresetIndex + 1) % todayChapters.length
-                        )
-                      }
-                      aria-label="Next daily chapter"
-                      className="w-8 h-8 rounded-full bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] flex items-center justify-center text-[#1F2937] cursor-pointer"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <span className="w-10 h-10 rounded-2xl bg-[#EBF1EE] text-[#4A6B5D] font-editorial font-semibold text-base flex items-center justify-center shrink-0">
-                    {nextUp.chapter}
-                  </span>
-                )}
-              </div>
-
-              {todayChapters.length > 1 && (
-                <div className="flex items-center justify-center gap-1.5">
-                  {todayChapters.map((ch, idx) => {
-                    const chDone = progressMap.has(
-                      chapterKey(ch.book, ch.chapter)
-                    );
-                    const isActiveDot = idx === activePresetIndex;
-                    return (
-                      <button
-                        key={chapterKey(ch.book, ch.chapter)}
-                        type="button"
-                        onClick={() => setPresetStep(idx)}
-                        aria-label={`Go to ${ch.book} ${ch.chapter}`}
-                        className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                          isActiveDot
-                            ? "w-4 bg-[#4A6B5D]"
-                            : chDone
-                              ? "w-1.5 bg-[#7C9A82]"
-                              : "w-1.5 bg-[#E6E1D6]"
-                        }`}
-                      />
-                    );
-                  })}
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3">
-                <Link
-                  href={`/reader?book=${encodeURIComponent(
-                    nextUp.book
-                  )}&chapter=${nextUp.chapter}`}
-                  className="py-3 px-4 rounded-2xl bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white text-xs font-medium flex items-center justify-center gap-2 shadow-2xs transition-colors"
-                >
-                  <BookOpen className="w-4 h-4" />
-                  <span>Read in App</span>
-                </Link>
-
-                {!authResolved ? (
-                  <span
-                    aria-hidden="true"
-                    className="w-full h-[42px] rounded-2xl border border-[#E6E1D6] bg-[#F4F1EA] animate-pulse"
-                  />
-                ) : userId ? (
-                  <button
-                    type="button"
-                    disabled={busyKey === nextKey}
-                    onClick={() =>
-                      togglePhysicalBible(nextUp.book, nextUp.chapter)
-                    }
-                    className={`py-3 px-4 rounded-2xl border text-xs font-medium flex items-center justify-center gap-2 transition-colors cursor-pointer ${
-                      isNextChecked
-                        ? "bg-[#EBF1EE] border-[#4A6B5D] text-[#3D5A4E]"
-                        : "bg-[#FBF5EE] border-[#E7D3BC] text-[#B47B44] hover:bg-[#F6EAD9]"
-                    }`}
-                  >
-                    {isNextChecked ? (
-                      <>
-                        <Check className="w-4 h-4" />
-                        <span>Completed</span>
-                      </>
-                    ) : (
-                      <>
-                        <BookMarked className="w-4 h-4" />
-                        <span>Physical Bible</span>
-                      </>
-                    )}
-                  </button>
-                ) : (
-                  <Link
-                    href="/login"
-                    className="py-3 px-4 rounded-2xl border border-[#E6E1D6] bg-[#FAF9F6] text-[#1F2937] text-xs font-medium flex items-center justify-center gap-2"
-                  >
-                    <span>Sign In</span>
-                  </Link>
-                )}
               </div>
             </>
           )}
