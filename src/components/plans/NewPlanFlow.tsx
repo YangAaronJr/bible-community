@@ -267,18 +267,45 @@ export default function NewPlanFlow({
                           </button>
                         ))}
                       </div>
-                      {selectedBooks.length > 0 && (
+                      <div className="flex items-center gap-2.5">
                         <button
                           type="button"
-                          onClick={() => setSelectedBooks([])}
-                          className="text-xs font-medium text-[#6B7280] dark:text-[#A1A19A] hover:text-[#1F2937] dark:hover:text-[#F3F2EE] cursor-pointer"
+                          onClick={() => {
+                            const visibleNames = filteredBooks.map((b) => b.name);
+                            const allSelected = visibleNames.every((n) =>
+                              selectedBooks.includes(n)
+                            );
+                            if (allSelected) {
+                              setSelectedBooks((prev) =>
+                                prev.filter((n) => !visibleNames.includes(n))
+                              );
+                            } else {
+                              setSelectedBooks((prev) =>
+                                Array.from(new Set([...prev, ...visibleNames]))
+                              );
+                            }
+                          }}
+                          className="text-xs font-medium text-[#4A6B5D] dark:text-[#7C9A82] hover:underline cursor-pointer"
                         >
-                          Clear ({selectedBooks.length})
+                          {filteredBooks.every((b) =>
+                            selectedBooks.includes(b.name)
+                          )
+                            ? `Deselect ${testamentFilter}`
+                            : `Select all ${testamentFilter}`}
                         </button>
-                      )}
+                        {selectedBooks.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedBooks([])}
+                            className="text-xs font-medium text-[#6B7280] dark:text-[#A1A19A] hover:text-[#1F2937] dark:hover:text-[#F3F2EE] cursor-pointer"
+                          >
+                            Clear ({selectedBooks.length})
+                          </button>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-1.5 max-h-52 overflow-y-auto pr-1">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-60 overflow-y-auto pr-1">
                       {filteredBooks.map((book) => {
                         const active = selectedBooks.includes(book.name);
                         return (
@@ -286,13 +313,22 @@ export default function NewPlanFlow({
                             key={book.name}
                             type="button"
                             onClick={() => toggleBook(book.name)}
-                            className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer flex items-center justify-between gap-1.5 min-w-0 ${
                               active
                                 ? "bg-[#4A6B5D] dark:bg-[#63826A] text-white border-[#4A6B5D] dark:border-[#63826A]"
                                 : "bg-white dark:bg-[#1C1C1A] text-[#1F2937] dark:text-[#F3F2EE] border-[#E6E1D6] dark:border-[#2C2C28] hover:border-[#4A6B5D]/60"
                             }`}
                           >
-                            {book.name}
+                            <span className="truncate">{book.name}</span>
+                            <span
+                              className={`text-[10px] shrink-0 ${
+                                active
+                                  ? "text-white/80"
+                                  : "text-[#6B7280] dark:text-[#A1A19A]"
+                              }`}
+                            >
+                              {book.chapters}ch
+                            </span>
                           </button>
                         );
                       })}
