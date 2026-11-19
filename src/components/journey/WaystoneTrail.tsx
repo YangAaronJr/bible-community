@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronRight, Compass } from "lucide-react";
-import ChapterNotesInline, {
+import {
+  ChapterNoteIndexCard,
+  ChapterNotesModal,
   type PrivateVerseNote,
 } from "@/components/journey/ChapterNotesInline";
 import {
@@ -185,6 +187,11 @@ export default function WaystoneTrail({
   >("idle");
   const [zoomOrigin, setZoomOrigin] = useState<string>("50% 40%");
   const animTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [activeNotesModal, setActiveNotesModal] = useState<{
+    bookName: string;
+    chapter: number;
+    notes: PrivateVerseNote[];
+  } | null>(null);
 
   const activeMovement: CanonicalMovement | null = selectedMovementId
     ? CANONICAL_MOVEMENTS.find((m) => m.id === selectedMovementId) ?? null
@@ -560,39 +567,54 @@ export default function WaystoneTrail({
                       isEven ? "-translate-x-7" : "translate-x-7"
                     }`}
                   >
-                    <button
-                      type="button"
-                      onClick={() => router.push(readerHref)}
-                      className="group relative flex items-center justify-center focus:outline-none"
-                      aria-label={`${activeBook.name} chapter ${chapter}`}
-                    >
-                      <span
-                        className={`w-6 h-6 rounded-full transition-transform group-hover:scale-110 group-focus-visible:ring-2 group-focus-visible:ring-[#4A6B5D]/50 ${
-                          isRead
-                            ? "bg-[#6C8879] dark:bg-[#7C9A82]"
-                            : "bg-[#EDE8DF] dark:bg-[#252522] border-2 border-[#C8BFB0] dark:border-[#4A4842]"
-                        }`}
-                      />
-                      <span
-                        className={`absolute top-1/2 -translate-y-1/2 whitespace-nowrap font-serif text-[15px] transition-colors ${
-                          isEven ? "left-9 text-left" : "right-9 text-right"
-                        } ${
-                          isRead
-                            ? "text-[#1F2937] dark:text-[#F3F2EE] group-hover:text-[#4A6B5D] dark:group-hover:text-[#7C9A82]"
-                            : "text-[#9A9284] dark:text-[#6E6B63] group-hover:text-[#1F2937] dark:group-hover:text-[#F3F2EE]"
-                        }`}
+                    <div className="relative flex items-center justify-center">
+                      <button
+                        type="button"
+                        onClick={() => router.push(readerHref)}
+                        className="group relative flex items-center justify-center focus:outline-none"
+                        aria-label={`${activeBook.name} chapter ${chapter}`}
                       >
-                        {activeBook.name} {chapter}
-                      </span>
-                    </button>
-                  </div>
+                        <span
+                          className={`w-6 h-6 rounded-full transition-transform group-hover:scale-110 group-focus-visible:ring-2 group-focus-visible:ring-[#4A6B5D]/50 ${
+                            isRead
+                              ? "bg-[#6C8879] dark:bg-[#7C9A82]"
+                              : "bg-[#EDE8DF] dark:bg-[#252522] border-2 border-[#C8BFB0] dark:border-[#4A4842]"
+                          }`}
+                        />
+                        <span
+                          className={`absolute top-1/2 -translate-y-1/2 whitespace-nowrap font-serif text-[15px] transition-colors ${
+                            isEven ? "left-9 text-left" : "right-9 text-right"
+                          } ${
+                            isRead
+                              ? "text-[#1F2937] dark:text-[#F3F2EE] group-hover:text-[#4A6B5D] dark:group-hover:text-[#7C9A82]"
+                              : "text-[#9A9284] dark:text-[#6E6B63] group-hover:text-[#1F2937] dark:group-hover:text-[#F3F2EE]"
+                          }`}
+                        >
+                          {activeBook.name} {chapter}
+                        </span>
+                      </button>
 
-                  {/* Inline private reflections (if any) */}
-                  {notes.length > 0 && (
-                    <div className="w-full max-w-[300px] my-2">
-                      <ChapterNotesInline notes={notes} />
+                      {/* Small index card on opposite side of the stone */}
+                      {notes.length > 0 && (
+                        <div
+                          className={`absolute top-1/2 -translate-y-1/2 ${
+                            isEven ? "right-9" : "left-9"
+                          }`}
+                        >
+                          <ChapterNoteIndexCard
+                            notes={notes}
+                            onOpen={() =>
+                              setActiveNotesModal({
+                                bookName: activeBook.name,
+                                chapter,
+                                notes,
+                              })
+                            }
+                          />
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
 
                   {/* Organic curved connector to next chapter */}
                   {!isLast && (
@@ -626,6 +648,15 @@ export default function WaystoneTrail({
         </ol>
       )}
       </div>
+
+      {activeNotesModal && (
+        <ChapterNotesModal
+          bookName={activeNotesModal.bookName}
+          chapter={activeNotesModal.chapter}
+          notes={activeNotesModal.notes}
+          onClose={() => setActiveNotesModal(null)}
+        />
+      )}
     </div>
   );
 }
