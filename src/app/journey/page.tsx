@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import Navbar from "@/components/ui/Navbar";
+import QuietPageHeader from "@/components/ui/QuietPageHeader";
 import { createClient } from "@/lib/supabase/client";
 import { BIBLE_BOOKS, WEEKDAYS } from "@/lib/plans/reading-plans";
 
@@ -152,9 +153,10 @@ export default function JourneyPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF9F6] text-[#1F2937] pb-24">
-      <Navbar />
+      <Navbar variant="inner" />
 
-      <main className="flex-1 max-w-xl w-full mx-auto px-5 py-5 space-y-5">
+      <main className="flex-1 max-w-xl w-full mx-auto px-5 pt-4 pb-5 space-y-5">
+        <QuietPageHeader title="Journey" />
         {loading ? (
           <div className="p-8 bg-white border border-[#E6E1D6] rounded-2xl flex items-center justify-center text-xs text-[#6B7280]">
             <Loader2 className="w-4 h-4 animate-spin mr-2" />

@@ -5,6 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, Loader2 } from "lucide-react";
 import ChatThread, { type ChatParticipant } from "@/components/chat/ChatThread";
+import QuietPageHeader, {
+  ThemeSettingsCluster,
+} from "@/components/ui/QuietPageHeader";
 import { createClient } from "@/lib/supabase/client";
 
 async function markDmRead(
@@ -137,26 +140,32 @@ export default function FriendDmRoom({
 
   if (loading) {
     return (
-      <div className="p-8 bg-white border border-[#E6E1D6] rounded-2xl flex items-center justify-center text-xs text-[#6B7280]">
-        <Loader2 className="w-4 h-4 animate-spin mr-2" />
-        Opening 1-on-1 conversation...
+      <div className="space-y-4">
+        <QuietPageHeader backHref="/social" backLabel="Back to Social" />
+        <div className="p-8 bg-white border border-[#E6E1D6] rounded-2xl flex items-center justify-center text-xs text-[#6B7280]">
+          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+          Opening 1-on-1 conversation...
+        </div>
       </div>
     );
   }
 
   if (!currentUserId || !peer || notFoundReason) {
     return (
-      <div className="bg-white border border-[#E6E1D6] rounded-2xl p-8 text-center space-y-3">
-        <p className="font-editorial text-lg text-[#1F2937]">
-          {notFoundReason || "Conversation unavailable"}
-        </p>
-        <Link
-          href="/social"
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#4A6B5D] text-white text-xs font-medium"
-        >
-          <ChevronLeft className="w-3.5 h-3.5" />
-          <span>Back to Social</span>
-        </Link>
+      <div className="space-y-4">
+        <QuietPageHeader backHref="/social" backLabel="Back to Social" />
+        <div className="bg-white border border-[#E6E1D6] rounded-2xl p-8 text-center space-y-3">
+          <p className="font-editorial text-lg text-[#1F2937]">
+            {notFoundReason || "Conversation unavailable"}
+          </p>
+          <Link
+            href="/social"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#4A6B5D] text-white text-xs font-medium"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            <span>Back to Social</span>
+          </Link>
+        </div>
       </div>
     );
   }
@@ -171,6 +180,7 @@ export default function FriendDmRoom({
       currentUserId={currentUserId}
       peerUserId={peer.user_id}
       headerAvatarUrl={peer.avatar_url}
+      headerAction={<ThemeSettingsCluster />}
       onBack={() => router.push(`/members/${peer.user_id}`)}
       onSelectParticipant={(p) => router.push(`/members/${p.user_id}`)}
       onMessagesUpdated={handleMessagesUpdated}

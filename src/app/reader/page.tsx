@@ -12,6 +12,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import Navbar from "@/components/ui/Navbar";
+import { ThemeSettingsCluster } from "@/components/ui/QuietPageHeader";
 import VerseNotesDrawer, {
   type EnrichedVerseNote,
 } from "@/components/reader/VerseNotesDrawer";
@@ -331,7 +332,11 @@ function ReaderContent() {
   }
 
   return (
-    <main className="flex-1 max-w-xl w-full mx-auto px-4 pt-4 pb-36 space-y-5">
+    <main className="flex-1 max-w-xl w-full mx-auto px-4 pt-3 pb-36 space-y-4">
+      <div className="flex items-center justify-end">
+        <ThemeSettingsCluster />
+      </div>
+
       {/* Centered Compact Top Navigation Bar & Translation Selector */}
       <div className="flex flex-wrap items-center justify-center gap-2">
         <div className="inline-flex items-center gap-1 bg-white border border-[#E6E1D6] rounded-full p-1.5 shadow-2xs">
@@ -417,7 +422,7 @@ function ReaderContent() {
             </span>
           </div>
         ) : textError ? (
-          <div className="p-6 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 text-center">
+          <div className="p-6 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 text-xs text-red-700 dark:text-red-300 text-center">
             {textError}
           </div>
         ) : (
@@ -528,7 +533,7 @@ function ReaderContent() {
 export default function ReaderPage() {
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF9F6] text-[#1F2937] pb-20 sm:pb-12">
-      <Navbar />
+      <Navbar variant="inner" />
       <Suspense
         fallback={
           <div className="flex-1 flex items-center justify-center text-sm text-[#596579]">

@@ -14,6 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import Navbar from "@/components/ui/Navbar";
+import QuietPageHeader from "@/components/ui/QuietPageHeader";
 import { createClient } from "@/lib/supabase/client";
 import type { Json } from "@/lib/types/database";
 import {
@@ -251,20 +252,20 @@ export default function PlansPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF9F6] text-[#1F2937] pb-24">
-      <Navbar />
+      <Navbar variant="inner" />
 
-      <main className="flex-1 max-w-xl w-full mx-auto px-5 py-6 space-y-5">
-        <div className="flex items-center justify-between">
-          <h1 className="font-editorial text-[26px] leading-none font-medium text-[#1F2937] tracking-tight">
-            Reading Plans
-          </h1>
-          <Link
-            href="/"
-            className="px-3.5 py-1.5 rounded-xl bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] text-xs font-medium text-[#1F2937] transition-colors"
-          >
-            Done
-          </Link>
-        </div>
+      <main className="flex-1 max-w-xl w-full mx-auto px-5 pt-4 pb-6 space-y-5">
+        <QuietPageHeader
+          title="Reading Plans"
+          rightSlot={
+            <Link
+              href="/"
+              className="px-3 py-1.5 rounded-xl bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] text-xs font-medium text-[#1F2937] transition-colors"
+            >
+              Done
+            </Link>
+          }
+        />
 
         {feedback && (
           <div className="px-4 py-2.5 rounded-2xl bg-[#EBF1EE] border border-[#CFE0D6] text-xs font-medium text-[#3D5A4E]">
