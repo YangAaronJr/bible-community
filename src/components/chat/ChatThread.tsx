@@ -175,6 +175,9 @@ export default function ChatThread({
   onMessagesUpdated,
 }: ChatThreadProps) {
   const [messages, setMessages] = useState<ChatMessageRow[]>([]);
+  const [persistedThreadMessages, setPersistedThreadMessages] = useState<
+    ChatMessageRow[]
+  >([]);
   const [loading, setLoading] = useState(true);
 
   const [content, setContent] = useState("");
@@ -336,6 +339,51 @@ export default function ChatThread({
       const combined = [...latestTop, ...replyRows];
       setMessages(combined);
       setHasOlderMessages(hasMore);
+
+      // Fetch all Topic Thread roots and all thread replies across the full chat
+      // history so threads older than MESSAGE_PAGE_SIZE remain accessible.
+      const [{ data: topicRootRows }, { data: allReplyRows }] =
+        await Promise.all([
+          buildFilteredQuery(supabase)
+            .is("parent_id", null)
+            .like("content", "[Thread]%")
+            .order("created_at", { ascending: false }),
+          buildFilteredQuery(supabase)
+            .not("parent_id", "is", null)
+            .order("created_at", { ascending: true }),
+        ]);
+
+      const knownIds = new Set<string>(
+        [...combined, ...(topicRootRows || [])].map((m) => m.id)
+      );
+      const missingRootIds = Array.from(
+        new Set(
+          (allReplyRows || [])
+            .map((r) => r.parent_id)
+            .filter(
+              (pid): pid is string =>
+                typeof pid === "string" && !knownIds.has(pid)
+            )
+        )
+      );
+
+      let missingRootRows: ChatMessageRow[] = [];
+      if (missingRootIds.length > 0) {
+        const { data: fetchedMissingRoots } = await buildFilteredQuery(supabase)
+          .in("id", missingRootIds);
+        missingRootRows = fetchedMissingRoots || [];
+      }
+
+      const threadRowsMap = new Map<string, ChatMessageRow>();
+      for (const row of [
+        ...(topicRootRows || []),
+        ...missingRootRows,
+        ...(allReplyRows || []),
+      ]) {
+        threadRowsMap.set(row.id, row);
+      }
+      setPersistedThreadMessages(Array.from(threadRowsMap.values()));
+
       await loadPrayerResponses(combined);
       const latest =
         combined.length > 0
@@ -524,10 +572,16 @@ export default function ChatThread({
             const oldId = (payload.old as { id?: string })?.id;
             if (oldId) {
               setMessages((prev) => prev.filter((m) => m.id !== oldId));
+              setPersistedThreadMessages((prev) =>
+                prev.filter((m) => m.id !== oldId && m.parent_id !== oldId)
+              );
             }
           } else if (payload.eventType === "UPDATE") {
             const updated = payload.new as ChatMessageRow;
             setMessages((prev) =>
+              prev.map((m) => (m.id === updated.id ? updated : m))
+            );
+            setPersistedThreadMessages((prev) =>
               prev.map((m) => (m.id === updated.id ? updated : m))
             );
           }
@@ -730,7 +784,9 @@ export default function ChatThread({
   }
 
   async function handleDeleteMessage(id: string) {
-    const target = messages.find((m) => m.id === id);
+    const target =
+      messages.find((m) => m.id === id) ||
+      persistedThreadMessages.find((m) => m.id === id);
     const supabase = createClient();
     const { error: deleteError } = await supabase
       .from("messages")
@@ -743,6 +799,9 @@ export default function ChatThread({
     }
 
     setMessages((prev) => prev.filter((m) => m.id !== id));
+    setPersistedThreadMessages((prev) =>
+      prev.filter((m) => m.id !== id && m.parent_id !== id)
+    );
 
     const objectPath = extractStorageObjectPath(
       target?.image_url,
@@ -875,9 +934,33 @@ export default function ChatThread({
       })
     : topLevelPosts;
 
-  const activeThreads: ThreadSummaryItem[] = topLevelPosts
+  const allThreadScopeById = new Map<string, ChatMessageRow>();
+  for (const m of persistedThreadMessages) {
+    allThreadScopeById.set(m.id, m);
+  }
+  for (const m of messages) {
+    allThreadScopeById.set(m.id, m);
+  }
+
+  const allThreadScopeMessages = Array.from(allThreadScopeById.values());
+  const allThreadTopLevel = allThreadScopeMessages.filter(
+    (m) => m.parent_id === null
+  );
+  const allRepliesByParent = new Map<string, ChatMessageRow[]>();
+  for (const m of allThreadScopeMessages) {
+    if (m.parent_id) {
+      const list = allRepliesByParent.get(m.parent_id) || [];
+      list.push(m);
+      allRepliesByParent.set(m.parent_id, list);
+    }
+  }
+  for (const list of allRepliesByParent.values()) {
+    list.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  }
+
+  const activeThreads: ThreadSummaryItem[] = allThreadTopLevel
     .map((root) => {
-      const replies = repliesByParent.get(root.id) || [];
+      const replies = allRepliesByParent.get(root.id) || [];
       const topic = parseThreadTopic(root.content);
       if (!topic.isTopicThread && replies.length === 0) return null;
       return {
@@ -893,7 +976,7 @@ export default function ChatThread({
     .sort((a, b) => b.lastReplyAt.localeCompare(a.lastReplyAt));
 
   const activeThreadRoot = activeThreadRootId
-    ? messages.find((m) => m.id === activeThreadRootId) || null
+    ? allThreadScopeById.get(activeThreadRootId) || null
     : null;
 
   const selectedBookMeta =
@@ -1713,7 +1796,7 @@ export default function ChatThread({
       {activeThreadRoot && (
         <ThreadDrawer
           rootMessage={activeThreadRoot}
-          replies={repliesByParent.get(activeThreadRoot.id) || []}
+          replies={allRepliesByParent.get(activeThreadRoot.id) || []}
           mode={mode}
           threadId={threadId}
           currentUserId={currentUserId}
