@@ -20,7 +20,7 @@ import QuietPageHeader, {
   ThemeSettingsCluster,
 } from "@/components/ui/QuietPageHeader";
 import { OliveBranchMark } from "@/components/ui/MinimalIllustrations";
-import { READING_PLAN_PRESETS } from "@/lib/plans/reading-plans";
+import { getSharedPlanTitle } from "@/lib/plans/reading-plans";
 import { createClient } from "@/lib/supabase/client";
 import type {
   CircleInfo,
@@ -449,10 +449,7 @@ export default function CircleWorkspace({
     );
   }
 
-  const sharedPlanTitle = activeCircle.shared_plan_id
-    ? READING_PLAN_PRESETS.find((p) => p.id === activeCircle.shared_plan_id)
-        ?.title || activeCircle.shared_plan_id
-    : null;
+  const sharedPlanTitle = getSharedPlanTitle(activeCircle.shared_plan_id);
 
   const isChatView = subView === "chat";
 

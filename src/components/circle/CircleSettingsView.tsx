@@ -15,7 +15,15 @@ import {
 } from "lucide-react";
 import { getInitials } from "@/components/ui/Navbar";
 import QuietPageHeader from "@/components/ui/QuietPageHeader";
-import { READING_PLAN_PRESETS } from "@/lib/plans/reading-plans";
+import NewPlanFlow, { type NewPlanResult } from "@/components/plans/NewPlanFlow";
+import {
+  encodeSharedCustomPlan,
+  getSharedPlanTitle,
+  parseSharedPlan,
+  WEEKDAYS,
+  type CustomScheduleSlot,
+} from "@/lib/plans/reading-plans";
+import type { Json } from "@/lib/types/database";
 import { extractStorageObjectPath } from "@/lib/storage/paths";
 import { createClient } from "@/lib/supabase/client";
 
@@ -50,6 +58,7 @@ export default function CircleSettingsView({
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [savingName, setSavingName] = useState(false);
   const [savingPlan, setSavingPlan] = useState(false);
+  const [planModalOpen, setPlanModalOpen] = useState(false);
   const [syncingMyPlan, setSyncingMyPlan] = useState(false);
   const [confirmingLeave, setConfirmingLeave] = useState(false);
   const [leavingCircle, setLeavingCircle] = useState(false);
@@ -240,27 +249,64 @@ export default function CircleSettingsView({
     onCircleUpdated?.();
   }
 
+  async function handleNewCirclePlanComplete(result: NewPlanResult) {
+    if (result.kind === "preset" && result.presetId) {
+      await handleSharedPlanChange(result.presetId);
+    } else {
+      const encoded = encodeSharedCustomPlan({
+        title: result.title,
+        books: result.books,
+        chaptersPerDay: result.chaptersPerDay,
+        restDays: result.restDays,
+      });
+      await handleSharedPlanChange(encoded);
+    }
+    setPlanModalOpen(false);
+  }
+
   async function handleSyncMyPlan() {
     if (!userId || !sharedPlanId) return;
+    const parsed = parseSharedPlan(sharedPlanId);
+    if (!parsed) return;
     setSyncingMyPlan(true);
     setFeedback(null);
 
     try {
-      if (typeof window !== "undefined") {
-        localStorage.setItem("selected_reading_plan", sharedPlanId);
-      }
       const supabase = createClient();
-      const { error } = await supabase
-        .from("custom_schedules")
-        .update({ is_active: false })
-        .eq("user_id", userId);
+      if (parsed.kind === "preset") {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("selected_reading_plan", parsed.preset.id);
+        }
+        const { error } = await supabase
+          .from("custom_schedules")
+          .update({ is_active: false })
+          .eq("user_id", userId);
+        if (error) throw error;
+      } else {
+        await supabase
+          .from("custom_schedules")
+          .update({ is_active: false })
+          .eq("user_id", userId);
 
-      if (error) throw error;
+        const items: CustomScheduleSlot[] = [
+          {
+            timeOfDay: "Morning",
+            track: parsed.custom.books.join(", "),
+            chaptersPerDay: parsed.custom.chaptersPerDay,
+          },
+        ];
+        const { error } = await supabase.from("custom_schedules").insert({
+          user_id: userId,
+          title: parsed.custom.title,
+          rest_days: parsed.custom.restDays,
+          schedule_items: items as unknown as Json,
+          is_active: true,
+        });
+        if (error) throw error;
+      }
 
       setMyPlanSynced(true);
-      const title =
-        READING_PLAN_PRESETS.find((p) => p.id === sharedPlanId)?.title ||
-        sharedPlanId;
+      const title = getSharedPlanTitle(sharedPlanId) || sharedPlanId;
       setFeedback({
         type: "success",
         text: `Synced your reading plan to ${title}.`,
@@ -474,27 +520,57 @@ export default function CircleSettingsView({
       </section>
 
       {/* 3. Shared Reading Plan */}
-      <section className="bg-white border border-[#E6E1D6] rounded-2xl p-5 space-y-3.5">
-        <div className="flex items-center gap-2">
-          <BookOpen className="w-4 h-4 text-[#4A6B5D]" />
-          <h2 className="font-editorial text-base font-semibold text-[#1F2937]">
-            Shared Reading Plan
-          </h2>
+      <section className="bg-white dark:bg-[#1C1C1A] border border-[#E6E1D6] dark:border-[#2C2C28] rounded-2xl p-5 space-y-3.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-[#4A6B5D] dark:text-[#7C9A82]" />
+            <h2 className="font-editorial text-base font-semibold text-[#1F2937] dark:text-[#F3F2EE]">
+              Shared Reading Plan
+            </h2>
+          </div>
+          {sharedPlanId && (
+            <button
+              type="button"
+              disabled={savingPlan}
+              onClick={() => handleSharedPlanChange("")}
+              className="text-xs font-medium text-[#6B7280] dark:text-[#A1A19A] hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer"
+            >
+              Clear
+            </button>
+          )}
         </div>
 
-        <select
-          value={sharedPlanId}
-          disabled={savingPlan}
-          onChange={(e) => handleSharedPlanChange(e.target.value)}
-          className="w-full px-3.5 py-2.5 rounded-xl border border-[#E6E1D6] bg-[#FAF9F6] dark:bg-[#141413] text-xs font-medium text-[#1F2937] dark:text-[#F3F2EE] focus:outline-none focus:border-[#4A6B5D]"
-        >
-          <option value="">No shared plan</option>
-          {READING_PLAN_PRESETS.map((plan) => (
-            <option key={plan.id} value={plan.id}>
-              {plan.title}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl border border-[#E6E1D6] dark:border-[#2C2C28] bg-[#FAF9F6] dark:bg-[#141413]">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-[#1F2937] dark:text-[#F3F2EE] truncate">
+              {sharedPlanId
+                ? getSharedPlanTitle(sharedPlanId)
+                : "No shared plan"}
+            </p>
+            {(() => {
+              const parsed = parseSharedPlan(sharedPlanId);
+              if (!parsed || parsed.kind !== "custom") return null;
+              const restStr = parsed.custom.restDays
+                .map((d) => WEEKDAYS.find((w) => w.day === d)?.short || "")
+                .filter(Boolean)
+                .join(", ");
+              return (
+                <p className="text-[11px] text-[#6B7280] dark:text-[#A1A19A]">
+                  {parsed.custom.chaptersPerDay} ch/day
+                  {restStr ? ` · Rest: ${restStr}` : ""}
+                </p>
+              );
+            })()}
+          </div>
+          <button
+            type="button"
+            disabled={savingPlan}
+            onClick={() => setPlanModalOpen(true)}
+            className="px-3 py-1.5 rounded-lg border border-[#E6E1D6] dark:border-[#2C2C28] bg-white dark:bg-[#1C1C1A] text-xs font-semibold text-[#4A6B5D] dark:text-[#7C9A82] hover:bg-[#EBF1EE] dark:hover:bg-[#202923] transition-colors shrink-0 cursor-pointer"
+          >
+            {sharedPlanId ? "Change" : "+ Set Plan"}
+          </button>
+        </div>
 
         {sharedPlanId && (
           <button
@@ -522,6 +598,17 @@ export default function CircleSettingsView({
           </button>
         )}
       </section>
+
+      <NewPlanFlow
+        open={planModalOpen}
+        mode="circle"
+        saving={savingPlan}
+        initialPresetId={
+          sharedPlanId === "gospels-psalms" ? "gospels-psalms" : "nt-90"
+        }
+        onClose={() => setPlanModalOpen(false)}
+        onComplete={handleNewCirclePlanComplete}
+      />
 
       {/* 4. Leave Circle */}
       <section className="bg-white border border-[#E6E1D6] rounded-2xl p-5 space-y-3">
