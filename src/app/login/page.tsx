@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { BookOpen, ArrowRight, Loader2 } from "lucide-react";
+import Navbar from "@/components/ui/Navbar";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -68,7 +69,7 @@ export default function LoginPage() {
 
         if (signInError) throw signInError;
 
-        router.push("/today");
+        router.push("/");
         router.refresh();
         return;
       }
@@ -84,8 +85,10 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-4 py-12 bg-[#FAF9F6] text-[#1F2937]">
-      <div className="w-full max-w-md bg-white border border-[#E5E0D8] rounded-2xl p-6 sm:p-8 shadow-xs space-y-6">
+    <div className="min-h-screen flex flex-col bg-[#FAF9F6] text-[#1F2937]">
+      <Navbar variant="login" />
+      <main className="flex-1 flex flex-col items-center justify-center px-4 py-10">
+        <div className="w-full max-w-md bg-white border border-[#E5E0D8] rounded-2xl p-6 sm:p-8 shadow-xs space-y-6">
         <div className="text-center space-y-2">
           <Link
             href="/"
@@ -211,6 +214,7 @@ export default function LoginPage() {
           </button>
         </form>
       </div>
-    </main>
+      </main>
+    </div>
   );
 }
