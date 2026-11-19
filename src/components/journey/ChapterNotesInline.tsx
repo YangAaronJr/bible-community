@@ -49,7 +49,7 @@ export function ChapterNoteIndexCard({
         e.stopPropagation();
         onOpen();
       }}
-      aria-label={`Read ${notes.length} private ${
+      aria-label={`Read ${notes.length} ${
         notes.length === 1 ? "reflection" : "reflections"
       }`}
       className="w-[104px] sm:w-[122px] text-left rounded-lg bg-white dark:bg-[#1E1E1C] border border-[#E6E1D6] dark:border-[#2E2E2B] border-t-2 border-t-[#6C8879] dark:border-t-[#7C9A82] px-2 py-1.5 shadow-2xs hover:border-[#4A6B5D]/60 dark:hover:border-[#7C9A82]/60 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A6B5D]/40"
@@ -114,7 +114,7 @@ export function ChapterNotesModal({
               {bookName} {chapter}
             </h2>
             <p className="text-[11px] text-[#6B7280] dark:text-[#A3A19A]">
-              Private reflections
+              Your reflections
             </p>
           </div>
           <button

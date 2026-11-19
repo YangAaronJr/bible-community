@@ -13,18 +13,19 @@ import {
   getMovementProgress,
   type CanonicalMovement,
 } from "@/components/journey/movements";
-import type { BibleBook } from "@/lib/plans/reading-plans";
+import { chapterKey, type BibleBook } from "@/lib/plans/reading-plans";
 
 interface WaystoneTrailProps {
   completedByBook: Map<string, Set<number>>;
   notesByBookChapter: Map<string, PrivateVerseNote[]>;
+  todayChapterKeys: Set<string>;
 }
 
 interface TrailPoint {
   id: string;
   label: string;
   sublabel?: string;
-  state: "complete" | "active" | "untouched";
+  state: "today" | "complete" | "active" | "untouched";
 }
 
 const SVG_WIDTH = 320;
@@ -78,7 +79,8 @@ function SCurveTrail({
           const isTrodden =
             point.state !== "untouched" && next.state !== "untouched";
           const isLeadingToActive =
-            point.state !== "untouched" && next.state === "active";
+            point.state !== "untouched" &&
+            (next.state === "active" || next.state === "today");
 
           return (
             <path
@@ -91,7 +93,9 @@ function SCurveTrail({
                 isTrodden || isLeadingToActive ? undefined : "5 7"
               }
               className={
-                isTrodden || isLeadingToActive
+                next.state === "today"
+                  ? "stroke-[#D4A03C]/75 dark:stroke-[#E2B354]/75"
+                  : isTrodden || isLeadingToActive
                   ? "stroke-[#8FA89B] dark:stroke-[#63826A]"
                   : "stroke-[#D8D2C5] dark:stroke-[#3A3935]"
               }
@@ -123,18 +127,25 @@ function SCurveTrail({
                   : point.label
               }
             >
-              {/* Soft sage halo for active node */}
-              {point.state === "active" && (
+              {/* Soft halo for active or today node */}
+              {point.state === "today" ? (
+                <span
+                  aria-hidden="true"
+                  className="absolute w-11 h-11 rounded-full bg-[#D4A03C]/25 dark:bg-[#E2B354]/25 blur-[2px] transition-transform group-hover:scale-110"
+                />
+              ) : point.state === "active" ? (
                 <span
                   aria-hidden="true"
                   className="absolute w-11 h-11 rounded-full bg-[#4A6B5D]/20 dark:bg-[#7C9A82]/25 blur-[2px] transition-transform group-hover:scale-110"
                 />
-              )}
+              ) : null}
 
               {/* Stone circle */}
               <span
                 className={`relative z-10 w-7 h-7 rounded-full transition-transform group-hover:scale-110 group-focus-visible:ring-2 group-focus-visible:ring-[#4A6B5D]/50 ${
-                  point.state === "complete"
+                  point.state === "today"
+                    ? "bg-[#D4A03C] dark:bg-[#E2B354] ring-4 ring-[#FBF3DB] dark:ring-[#3A2E14]"
+                    : point.state === "complete"
                     ? "bg-[#6C8879] dark:bg-[#7C9A82] border-2 border-[#6C8879] dark:border-[#7C9A82]"
                     : point.state === "active"
                     ? "bg-[#6C8879] dark:bg-[#7C9A82] ring-4 ring-[#EBF1EE] dark:ring-[#212B25]"
@@ -149,7 +160,9 @@ function SCurveTrail({
                     ? "left-10 text-left"
                     : "right-10 text-right"
                 } ${
-                  point.state === "untouched"
+                  point.state === "today"
+                    ? "text-[#9A6714] dark:text-[#E2B354] font-medium"
+                    : point.state === "untouched"
                     ? "text-[#9A9284] dark:text-[#6E6B63] group-hover:text-[#6B7280] dark:group-hover:text-[#A3A19A]"
                     : "text-[#1F2937] dark:text-[#F3F2EE] group-hover:text-[#4A6B5D] dark:group-hover:text-[#7C9A82]"
                 }`}
@@ -172,11 +185,18 @@ function SCurveTrail({
 export default function WaystoneTrail({
   completedByBook,
   notesByBookChapter,
+  todayChapterKeys,
 }: WaystoneTrailProps) {
   const router = useRouter();
   const trailRef = useRef<HTMLDivElement | null>(null);
   const pinchStartDistRef = useRef<number | null>(null);
   const lastZoomAtRef = useRef<number>(0);
+
+  const todayBooks = new Set<string>();
+  for (const key of todayChapterKeys) {
+    const [bookName] = key.split("::");
+    if (bookName) todayBooks.add(bookName);
+  }
 
   const [selectedMovementId, setSelectedMovementId] = useState<string | null>(
     null
@@ -404,12 +424,22 @@ export default function WaystoneTrail({
   // Build Level 1 movement points
   const movementPoints: TrailPoint[] = CANONICAL_MOVEMENTS.map((movement) => {
     const stats = getMovementProgress(movement, completedByBook);
+    const isToday = movement.books.some((b) => todayBooks.has(b.name));
     const isComplete =
       stats.totalChapters > 0 && stats.readChapters >= stats.totalChapters;
     const isActive = stats.readChapters > 0 && !isComplete;
 
     let sublabel: string | undefined;
-    if (isActive) {
+    if (isToday) {
+      const todayBook = movement.books.find((b) => todayBooks.has(b.name));
+      if (todayBook) {
+        const firstTodayKey = Array.from(todayChapterKeys).find((k) =>
+          k.startsWith(`${todayBook.name}::`)
+        );
+        const chNum = firstTodayKey ? firstTodayKey.split("::")[1] : undefined;
+        sublabel = chNum ? `${todayBook.name} ${chNum}` : todayBook.name;
+      }
+    } else if (isActive) {
       const latestBook = [...movement.books]
         .reverse()
         .find((b) => (completedByBook.get(b.name)?.size ?? 0) > 0);
@@ -426,7 +456,13 @@ export default function WaystoneTrail({
       id: movement.id,
       label: movement.name === "Wisdom & Poetry" ? "Wisdom" : movement.name,
       sublabel,
-      state: isComplete ? "complete" : isActive ? "active" : "untouched",
+      state: isToday
+        ? "today"
+        : isComplete
+        ? "complete"
+        : isActive
+        ? "active"
+        : "untouched",
     };
   });
 
@@ -435,14 +471,34 @@ export default function WaystoneTrail({
     ? activeMovement.books.map((book) => {
         const readSet = completedByBook.get(book.name);
         const readCount = readSet?.size ?? 0;
+        const isToday = todayBooks.has(book.name);
         const isComplete = readCount >= book.chapters;
         const isActive = readCount > 0 && !isComplete;
+
+        let sublabel: string | undefined;
+        if (isToday) {
+          const firstTodayKey = Array.from(todayChapterKeys).find((k) =>
+            k.startsWith(`${book.name}::`)
+          );
+          const chNum = firstTodayKey
+            ? firstTodayKey.split("::")[1]
+            : undefined;
+          if (chNum) sublabel = `ch. ${chNum}`;
+        } else if (isActive) {
+          sublabel = `ch. ${Math.max(...Array.from(readSet!))}`;
+        }
 
         return {
           id: book.name,
           label: book.name,
-          sublabel: isActive ? `ch. ${Math.max(...Array.from(readSet!))}` : undefined,
-          state: isComplete ? "complete" : isActive ? "active" : "untouched",
+          sublabel,
+          state: isToday
+            ? "today"
+            : isComplete
+            ? "complete"
+            : isActive
+            ? "active"
+            : "untouched",
         };
       })
     : [];
@@ -551,6 +607,9 @@ export default function WaystoneTrail({
             (chapter, idx) => {
               const isRead =
                 completedByBook.get(activeBook.name)?.has(chapter) ?? false;
+              const isToday = todayChapterKeys.has(
+                chapterKey(activeBook.name, chapter)
+              );
               const notes =
                 notesByBookChapter.get(`${activeBook.name}:${chapter}`) ?? [];
               const readerHref = `/reader?book=${encodeURIComponent(
@@ -572,11 +631,21 @@ export default function WaystoneTrail({
                         type="button"
                         onClick={() => router.push(readerHref)}
                         className="group relative flex items-center justify-center focus:outline-none"
-                        aria-label={`${activeBook.name} chapter ${chapter}`}
+                        aria-label={`${activeBook.name} chapter ${chapter}${
+                          isToday ? " (assigned today)" : ""
+                        }`}
                       >
+                        {isToday && (
+                          <span
+                            aria-hidden="true"
+                            className="absolute w-10 h-10 rounded-full bg-[#D4A03C]/25 dark:bg-[#E2B354]/25 blur-[2px] transition-transform group-hover:scale-110"
+                          />
+                        )}
                         <span
-                          className={`w-6 h-6 rounded-full transition-transform group-hover:scale-110 group-focus-visible:ring-2 group-focus-visible:ring-[#4A6B5D]/50 ${
-                            isRead
+                          className={`relative z-10 w-6 h-6 rounded-full transition-transform group-hover:scale-110 group-focus-visible:ring-2 group-focus-visible:ring-[#4A6B5D]/50 ${
+                            isToday
+                              ? "bg-[#D4A03C] dark:bg-[#E2B354] ring-4 ring-[#FBF3DB] dark:ring-[#3A2E14]"
+                              : isRead
                               ? "bg-[#6C8879] dark:bg-[#7C9A82]"
                               : "bg-[#EDE8DF] dark:bg-[#252522] border-2 border-[#C8BFB0] dark:border-[#4A4842]"
                           }`}
@@ -585,7 +654,9 @@ export default function WaystoneTrail({
                           className={`absolute top-1/2 -translate-y-1/2 whitespace-nowrap font-serif text-[15px] transition-colors ${
                             isEven ? "left-9 text-left" : "right-9 text-right"
                           } ${
-                            isRead
+                            isToday
+                              ? "text-[#9A6714] dark:text-[#E2B354] font-medium"
+                              : isRead
                               ? "text-[#1F2937] dark:text-[#F3F2EE] group-hover:text-[#4A6B5D] dark:group-hover:text-[#7C9A82]"
                               : "text-[#9A9284] dark:text-[#6E6B63] group-hover:text-[#1F2937] dark:group-hover:text-[#F3F2EE]"
                           }`}
