@@ -165,6 +165,10 @@ export const WEEKDAYS = [
   { day: 6, short: "Sat", label: "Saturday" },
 ];
 
+export function expandBookList(bookNames: string[]): ChapterRef[] {
+  return expandBooks(bookNames);
+}
+
 export function resolveTrackSequence(track: string): ChapterRef[] {
   if (track === "OT") {
     return expandBooks(
@@ -180,5 +184,82 @@ export function resolveTrackSequence(track: string): ChapterRef[] {
   if (track === "PsalmsProverbs") {
     return expandBooks(["Psalms", "Proverbs"]);
   }
-  return expandBooks([track]);
+  const parts = track
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return expandBooks(parts.length > 0 ? parts : [track]);
+}
+
+export interface SharedCustomPlanPayload {
+  title: string;
+  books: string[];
+  chaptersPerDay: number;
+  restDays: number[];
+}
+
+export type ParsedSharedPlan =
+  | { kind: "preset"; preset: ReadingPlanPreset }
+  | { kind: "custom"; custom: SharedCustomPlanPayload };
+
+const CUSTOM_PLAN_PREFIX = "custom:";
+
+export function encodeSharedCustomPlan(
+  payload: SharedCustomPlanPayload
+): string {
+  return `${CUSTOM_PLAN_PREFIX}${JSON.stringify({
+    title: payload.title.trim() || "Custom Plan",
+    books: payload.books,
+    chaptersPerDay: payload.chaptersPerDay,
+    restDays: payload.restDays,
+  })}`;
+}
+
+export function parseSharedPlan(
+  sharedPlanId: string | null | undefined
+): ParsedSharedPlan | null {
+  if (!sharedPlanId) return null;
+  const preset = READING_PLAN_PRESETS.find((p) => p.id === sharedPlanId);
+  if (preset) return { kind: "preset", preset };
+
+  if (sharedPlanId.startsWith(CUSTOM_PLAN_PREFIX)) {
+    try {
+      const parsed = JSON.parse(
+        sharedPlanId.slice(CUSTOM_PLAN_PREFIX.length)
+      ) as Partial<SharedCustomPlanPayload>;
+      if (
+        typeof parsed.title === "string" &&
+        Array.isArray(parsed.books) &&
+        parsed.books.length > 0
+      ) {
+        return {
+          kind: "custom",
+          custom: {
+            title: parsed.title,
+            books: parsed.books.filter((b): b is string => typeof b === "string"),
+            chaptersPerDay:
+              typeof parsed.chaptersPerDay === "number" &&
+              parsed.chaptersPerDay >= 1
+                ? parsed.chaptersPerDay
+                : 1,
+            restDays: Array.isArray(parsed.restDays)
+              ? parsed.restDays.filter((d): d is number => typeof d === "number")
+              : [],
+          },
+        };
+      }
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+export function getSharedPlanTitle(
+  sharedPlanId: string | null | undefined
+): string | null {
+  if (!sharedPlanId) return null;
+  const parsed = parseSharedPlan(sharedPlanId);
+  if (!parsed) return sharedPlanId;
+  return parsed.kind === "preset" ? parsed.preset.title : parsed.custom.title;
 }
