@@ -235,6 +235,16 @@ export default function CircleSettingsView({
     setCircle((prev) =>
       prev ? { ...prev, shared_plan_id: nextPlanId || null } : prev
     );
+
+    if (nextPlanId && userId) {
+      await supabase.from("circle_plan_updates").insert({
+        circle_id: circle.id,
+        actor_id: userId,
+        plan_id: nextPlanId,
+        plan_title: getSharedPlanTitle(nextPlanId) || nextPlanId,
+      });
+    }
+
     const localPlan =
       typeof window !== "undefined"
         ? localStorage.getItem("selected_reading_plan")

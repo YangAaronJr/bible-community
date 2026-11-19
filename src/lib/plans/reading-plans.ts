@@ -396,9 +396,9 @@ export function resolveUnifiedPlanSequence(
 
 export function getNextUnreadChapters(
   sequence: ChapterRef[],
-  completedKeys: ReadonlySet<string>,
+  completedKeys: { has(key: string): boolean },
   count = 1,
-  sessionKeys?: ReadonlySet<string>
+  sessionKeys?: { has(key: string): boolean }
 ): ChapterRef[] {
   const limit = Math.max(1, count);
   const remaining = sequence.filter((c) => {
