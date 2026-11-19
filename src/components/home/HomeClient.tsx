@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -497,6 +497,8 @@ export default function HomeClient({
   const [activeCirclePlan, setActiveCirclePlan] = useState<UnifiedPlan | null>(
     null
   );
+  const carouselRef = useRef<HTMLDivElement | null>(null);
+  const [activeReadingIdx, setActiveReadingIdx] = useState(0);
 
   const authResolved = initialUserId !== undefined || clientAuthResolved;
 
@@ -731,6 +733,30 @@ export default function HomeClient({
     circleChapters,
     activeCirclePlan?.circleName
   );
+  const safeReadingIdx = Math.min(
+    activeReadingIdx,
+    Math.max(0, combinedReadings.length - 1)
+  );
+
+  function handleCarouselScroll() {
+    const el = carouselRef.current;
+    if (!el || el.clientWidth === 0) return;
+    const nextIdx = Math.round(el.scrollLeft / el.clientWidth);
+    const clamped = Math.max(0, Math.min(nextIdx, combinedReadings.length - 1));
+    if (clamped !== activeReadingIdx) {
+      setActiveReadingIdx(clamped);
+    }
+  }
+
+  function scrollToReading(idx: number) {
+    const el = carouselRef.current;
+    if (!el) return;
+    el.scrollTo({
+      left: idx * el.clientWidth,
+      behavior: "smooth",
+    });
+    setActiveReadingIdx(idx);
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF9F6] text-[#1F2937] pb-24">
@@ -804,7 +830,7 @@ export default function HomeClient({
         </div>
 
         {/* Combined Personal & Circle Daily Readings Carousel */}
-        <section className="bg-white border border-[#E6E1D6] rounded-2xl p-5 space-y-3.5 shadow-2xs">
+        <section className="bg-white border border-[#E6E1D6] rounded-2xl p-5 space-y-4 shadow-2xs">
           {combinedReadings.length === 0 ? (
             <div className="text-center py-3 space-y-2.5">
               <span className="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-[#EBF1EE] text-[#4A6B5D] mx-auto">
@@ -843,52 +869,33 @@ export default function HomeClient({
                 <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[#4A6B5D]">
                   Today&apos;s Reading
                 </span>
-                {combinedReadings.length > 1 && (
-                  <span className="text-[11px] text-[#6B7280]">
-                    {combinedReadings.length} chapters · Scroll
-                  </span>
-                )}
               </div>
 
-              <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 -mx-1 px-1">
+              <div
+                ref={carouselRef}
+                onScroll={handleCarouselScroll}
+                className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar"
+              >
                 {combinedReadings.map((item) => {
                   const key = chapterKey(item.book, item.chapter);
                   const checked = progressMap.has(key);
-                  const chipLabel =
+                  const sourceLabel =
                     item.source === "both"
                       ? `Personal · ${item.circleName || "Circle"}`
                       : item.source === "circle"
                         ? item.circleName || "Circle"
                         : "Personal";
-                  const chipStyle =
-                    item.source === "circle"
-                      ? "bg-[#FBF5EE] border-[#E7D3BC] text-[#B47B44]"
-                      : item.source === "both"
-                        ? "bg-[#EBF1EE] border-[#CFE0D6] text-[#3D5A4E]"
-                        : "bg-[#F4F1EA] border-[#E6E1D6] text-[#4A6B5D]";
 
                   return (
                     <div
                       key={key}
-                      className={`snap-start rounded-2xl border border-[#E6E1D6] bg-[#FAF9F6] p-4 space-y-3.5 flex flex-col justify-between ${
-                        combinedReadings.length === 1
-                          ? "w-full"
-                          : "min-w-[85%] sm:min-w-[300px] shrink-0"
-                      }`}
+                      className="w-full shrink-0 snap-start space-y-4"
                     >
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[10px] font-semibold truncate max-w-[75%] ${chipStyle}`}
-                          >
-                            {chipLabel}
-                          </span>
-                          {item.timeOfDay && (
-                            <span className="text-[10px] font-medium text-[#6B7280] shrink-0">
-                              {item.timeOfDay}
-                            </span>
-                          )}
-                        </div>
+                      <div className="space-y-1">
+                        <p className="text-[11px] font-medium text-[#6B7280] truncate">
+                          {sourceLabel}
+                          {item.timeOfDay ? ` · ${item.timeOfDay}` : ""}
+                        </p>
                         <h2 className="font-editorial text-2xl font-semibold text-[#1F2937] truncate">
                           {item.book} {item.chapter}
                         </h2>
@@ -899,7 +906,7 @@ export default function HomeClient({
                           href={`/reader?book=${encodeURIComponent(
                             item.book
                           )}&chapter=${item.chapter}`}
-                          className="py-2.5 px-3 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white text-xs font-medium flex items-center justify-center gap-1.5 shadow-2xs transition-colors"
+                          className="py-2.5 px-3 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
                         >
                           <BookOpen className="w-3.5 h-3.5" />
                           <span>Read in App</span>
@@ -919,8 +926,8 @@ export default function HomeClient({
                             title="Mark chapter as read using your physical Bible"
                             className={`py-2.5 px-3 rounded-xl border text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
                               checked
-                                ? "bg-[#EBF1EE] border-[#4A6B5D] text-[#3D5A4E]"
-                                : "bg-[#FBF5EE] border-[#E7D3BC] text-[#B47B44] hover:bg-[#F6EAD9]"
+                                ? "bg-[#EBF1EE] border-[#CFE0D6] text-[#3D5A4E]"
+                                : "bg-transparent border-[#E6E1D6] text-[#6B7280] hover:bg-[#F4F1EA] hover:text-[#1F2937]"
                             }`}
                           >
                             {checked ? (
@@ -938,7 +945,7 @@ export default function HomeClient({
                         ) : (
                           <Link
                             href="/login"
-                            className="py-2.5 px-3 rounded-xl border border-[#E6E1D6] bg-[#FAF9F6] text-[#1F2937] text-xs font-medium flex items-center justify-center gap-1.5"
+                            className="py-2.5 px-3 rounded-xl border border-[#E6E1D6] bg-transparent text-[#1F2937] hover:bg-[#F4F1EA] text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
                           >
                             <span>Sign In</span>
                           </Link>
@@ -948,6 +955,33 @@ export default function HomeClient({
                   );
                 })}
               </div>
+
+              {combinedReadings.length > 1 && (
+                <div
+                  className="flex items-center justify-center gap-1.5 pt-0.5"
+                  role="tablist"
+                  aria-label="Daily readings"
+                >
+                  {combinedReadings.map((item, idx) => {
+                    const active = idx === safeReadingIdx;
+                    return (
+                      <button
+                        key={chapterKey(item.book, item.chapter)}
+                        type="button"
+                        role="tab"
+                        aria-selected={active}
+                        aria-label={`${item.book} ${item.chapter}`}
+                        onClick={() => scrollToReading(idx)}
+                        className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                          active
+                            ? "w-4 bg-[var(--sage-600)]"
+                            : "w-1.5 bg-[var(--paper-border)] hover:bg-[#6B7280]/50"
+                        }`}
+                      />
+                    );
+                  })}
+                </div>
+              )}
             </>
           )}
         </section>
