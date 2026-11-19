@@ -21,6 +21,7 @@ import { getInitials } from "@/components/ui/Navbar";
 import { BIBLE_BOOKS } from "@/lib/plans/reading-plans";
 import { fetchChapter } from "@/lib/bible/bible-api";
 import { extractStorageObjectPath } from "@/lib/storage/paths";
+import { usePinchFontSize } from "@/lib/hooks/usePinchFontSize";
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/lib/types/database";
 import ThreadDrawer from "@/components/chat/ThreadDrawer";
@@ -216,6 +217,11 @@ export default function ChatThread({
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const { scale: chatTextScale } = usePinchFontSize({
+    storageKey: "bible-community-chat-text-scale",
+    targetRef: scrollerRef,
+  });
+  const scaledPx = (px: number) => `${Math.round(px * chatTextScale * 10) / 10}px`;
   const resolvedImageKeysRef = useRef<Set<string>>(new Set());
   const messagesRef = useRef<ChatMessageRow[]>([]);
   const participantMap = new Map(participants.map((p) => [p.user_id, p]));
@@ -1125,12 +1131,18 @@ export default function ChatThread({
                         </div>
                       </div>
 
-                      <h4 className="font-editorial text-[16px] font-semibold text-[#1F2937] leading-snug">
+                      <h4
+                        style={{ fontSize: scaledPx(16) }}
+                        className="font-editorial font-semibold text-[#1F2937] leading-snug"
+                      >
                         {topic.title}
                       </h4>
 
                       {topic.body && (
-                        <p className="text-xs text-[#6B7280] line-clamp-2 leading-relaxed">
+                        <p
+                          style={{ fontSize: scaledPx(12) }}
+                          className="text-[#6B7280] line-clamp-2 leading-relaxed"
+                        >
                           {topic.body}
                         </p>
                       )}
@@ -1172,7 +1184,10 @@ export default function ChatThread({
                           {formatChatTime(msg.created_at)}
                         </span>
                       </div>
-                      <p className="text-[13px] leading-relaxed text-[#1F2937] mb-3 whitespace-pre-wrap">
+                      <p
+                        style={{ fontSize: scaledPx(13) }}
+                        className="leading-relaxed text-[#1F2937] mb-3 whitespace-pre-wrap"
+                      >
                         {displayContent}
                       </p>
                       <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#DCE8E0]">
@@ -1243,7 +1258,10 @@ export default function ChatThread({
                           Loading image...
                         </div>
                       )}
-                      <p className="text-[13px] leading-relaxed text-[#1F2937] whitespace-pre-wrap">
+                      <p
+                        style={{ fontSize: scaledPx(13) }}
+                        className="leading-relaxed text-[#1F2937] whitespace-pre-wrap"
+                      >
                         {displayContent}
                       </p>
                       {msg.ocr_text && (
@@ -1259,7 +1277,10 @@ export default function ChatThread({
                           <summary className="cursor-pointer font-medium text-[#4A6B5D] select-none">
                             Extracted notebook text (searchable)
                           </summary>
-                          <p className="mt-1 leading-relaxed text-[#1F2937] whitespace-pre-wrap">
+                          <p
+                            style={{ fontSize: scaledPx(11) }}
+                            className="mt-1 leading-relaxed text-[#1F2937] whitespace-pre-wrap"
+                          >
                             {msg.ocr_text}
                           </p>
                         </details>
@@ -1316,7 +1337,10 @@ export default function ChatThread({
                           <span>Scripture Reflection</span>
                         </div>
                       )}
-                      <p className="font-editorial text-[15px] leading-relaxed text-[#1F2937] whitespace-pre-wrap">
+                      <p
+                        style={{ fontSize: scaledPx(15) }}
+                        className="font-editorial leading-relaxed text-[#1F2937] whitespace-pre-wrap"
+                      >
                         {displayContent}
                       </p>
                       {isMe && (
@@ -1366,7 +1390,10 @@ export default function ChatThread({
                           )}
                         </div>
                       )}
-                      <p className="text-[13px] leading-relaxed whitespace-pre-wrap">
+                      <p
+                        style={{ fontSize: scaledPx(13) }}
+                        className="leading-relaxed whitespace-pre-wrap"
+                      >
                         {displayContent}
                       </p>
                       {scriptureRef && (
