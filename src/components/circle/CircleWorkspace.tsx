@@ -16,6 +16,10 @@ import {
   X,
 } from "lucide-react";
 import { getInitials } from "@/components/ui/Navbar";
+import QuietPageHeader, {
+  ThemeSettingsCluster,
+} from "@/components/ui/QuietPageHeader";
+import { OliveBranchMark } from "@/components/ui/MinimalIllustrations";
 import { READING_PLAN_PRESETS } from "@/lib/plans/reading-plans";
 import { createClient } from "@/lib/supabase/client";
 import type {
@@ -412,29 +416,35 @@ export default function CircleWorkspace({
 
   if (loading) {
     return (
-      <div className="p-8 bg-white border border-[#E6E1D6] rounded-2xl flex items-center justify-center text-xs text-[#6B7280]">
-        <Loader2 className="w-4 h-4 animate-spin mr-2" />
-        Opening Circle room...
+      <div className="px-5 py-4 space-y-4">
+        <QuietPageHeader backHref="/social" backLabel="Back to Social" />
+        <div className="p-8 bg-white border border-[#E6E1D6] rounded-2xl flex items-center justify-center text-xs text-[#6B7280]">
+          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+          Opening Circle room...
+        </div>
       </div>
     );
   }
 
   if (!activeCircle) {
     return (
-      <div className="bg-white border border-[#E6E1D6] rounded-2xl p-6 text-center space-y-3 mt-4">
-        <p className="font-editorial text-xl font-medium text-[#1F2937]">
-          Circle Not Found
-        </p>
-        <p className="text-xs text-[#6B7280]">
-          You may not be a member of this circle yet.
-        </p>
-        <Link
-          href="/social"
-          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white text-xs font-medium transition-colors"
-        >
-          <ChevronLeft className="w-3.5 h-3.5" />
-          <span>Back to Social</span>
-        </Link>
+      <div className="px-5 py-4 space-y-4">
+        <QuietPageHeader backHref="/social" backLabel="Back to Social" />
+        <div className="bg-white border border-[#E6E1D6] rounded-2xl p-6 text-center space-y-3">
+          <p className="font-editorial text-xl font-medium text-[#1F2937]">
+            Circle Not Found
+          </p>
+          <p className="text-xs text-[#6B7280]">
+            You may not be a member of this circle yet.
+          </p>
+          <Link
+            href="/social"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-[#4A6B5D] hover:bg-[#3D5A4E] text-white text-xs font-medium transition-colors"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            <span>Back to Social</span>
+          </Link>
+        </div>
       </div>
     );
   }
@@ -444,10 +454,22 @@ export default function CircleWorkspace({
         ?.title || activeCircle.shared_plan_id
     : null;
 
+  const isChatView = subView === "chat";
+
   return (
-    <div className="space-y-5 relative">
+    <div
+      className={
+        isChatView
+          ? "h-[calc(100dvh-4.5rem)] flex flex-col relative overflow-hidden"
+          : "px-5 py-4 space-y-5 relative"
+      }
+    >
       {/* Circle Header with Left Side Dropdown Menu (☰) */}
-      <header className="flex items-center justify-between gap-2.5 pt-1 pb-3 border-b border-[#E6E1D6] relative">
+      <header
+        className={`flex items-center justify-between gap-2 border-b border-[#E6E1D6] relative shrink-0 ${
+          isChatView ? "px-3 sm:px-4 py-2" : "pt-1 pb-3"
+        }`}
+      >
         <div className="flex items-center gap-2.5 min-w-0">
           <button
             type="button"
@@ -485,13 +507,18 @@ export default function CircleWorkspace({
           </div>
         </div>
 
-        <Link
-          href="/social"
-          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] text-xs font-medium text-[#4A6B5D] shrink-0 transition-colors"
-        >
-          <ChevronLeft className="w-3.5 h-3.5" />
-          <span>Social</span>
-        </Link>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Link
+            href="/social"
+            aria-label="Back to Social"
+            title="Back to Social"
+            className="inline-flex items-center gap-1 px-2 sm:px-2.5 h-8 rounded-xl bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] text-xs font-medium text-[#4A6B5D] shrink-0 transition-colors"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Social</span>
+          </Link>
+          <ThemeSettingsCluster />
+        </div>
 
         {/* Side Dropdown Menu */}
         {menuOpen && (
@@ -684,10 +711,7 @@ export default function CircleWorkspace({
             })}
           </div>
 
-          <p className="text-[11px] text-[#6B7280] pt-2">
-            Tap any member to view their profile, reflections, or connect
-            1-on-1.
-          </p>
+          <OliveBranchMark className="w-6 h-6 text-[#4A6B5D]/60 mx-auto pt-1" />
         </section>
       )}
     </div>

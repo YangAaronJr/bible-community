@@ -3,8 +3,17 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { Moon, Sun } from "lucide-react";
+import ThemeToggleButton from "@/components/ui/ThemeToggleButton";
 import { createClient } from "@/lib/supabase/client";
+import { resolveNavbarVariant, type NavbarVariant } from "@/lib/ui/nav-mode";
+
+export interface NavbarProps {
+  variant?: NavbarVariant;
+  initialUserId?: string | null;
+  initialDisplayName?: string | null;
+  initialAvatarUrl?: string | null;
+  hideBottomNav?: boolean;
+}
 
 export function getInitials(name: string | null | undefined): string {
   if (!name) return "FR";
@@ -26,35 +35,31 @@ function getLatestReadMs(
 }
 
 export default function Navbar({
+  variant,
   initialUserId,
-}: {
-  initialUserId?: string;
-} = {}) {
+  initialDisplayName = null,
+  initialAvatarUrl = null,
+  hideBottomNav = false,
+}: NavbarProps = {}) {
   const pathname = usePathname();
+  const activeVariant = variant ?? resolveNavbarVariant(pathname ?? "/");
+
   const [resolvedUserId, setResolvedUserId] = useState<string | null>(
     initialUserId ?? null
   );
-  const [displayName, setDisplayName] = useState<string | null>(null);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState<string | null>(
+    initialDisplayName ?? null
+  );
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(
+    initialAvatarUrl ?? null
+  );
   const [isAuthenticated, setIsAuthenticated] = useState(
     Boolean(initialUserId)
   );
+  const [clientAuthResolved, setClientAuthResolved] = useState(false);
   const [hasSocialBadge, setHasSocialBadge] = useState(false);
-  const [isDark, setIsDark] = useState(false);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setIsDark(document.documentElement.classList.contains("dark"));
-    }
-  }, [pathname]);
-
-  function toggleDarkMode() {
-    if (typeof window === "undefined") return;
-    const nextDark = !document.documentElement.classList.contains("dark");
-    document.documentElement.classList.toggle("dark", nextDark);
-    localStorage.setItem("theme_preference", nextDark ? "dark" : "light");
-    setIsDark(nextDark);
-  }
+  const authResolved = initialUserId !== undefined || clientAuthResolved;
 
   const refreshSocialBadge = useCallback(async (uid: string) => {
     const supabase = createClient();
@@ -124,50 +129,77 @@ export default function Navbar({
   }, []);
 
   useEffect(() => {
+    if (activeVariant === "login") return;
+
+    let cancelled = false;
     const supabase = createClient();
 
     async function loadUserProfile() {
-      let uid = initialUserId ?? null;
-      let fallbackName: string | undefined;
+      try {
+        let uid = initialUserId ?? null;
+        let fallbackName: string | undefined;
 
-      if (!uid) {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) {
-          setResolvedUserId(null);
-          setIsAuthenticated(false);
-          setDisplayName(null);
-          setAvatarUrl(null);
-          setHasSocialBadge(false);
-          return;
+        if (!uid) {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+          if (cancelled) return;
+
+          if (!user) {
+            setResolvedUserId(null);
+            setIsAuthenticated(false);
+            setDisplayName(null);
+            setAvatarUrl(null);
+            setHasSocialBadge(false);
+            setClientAuthResolved(true);
+            return;
+          }
+          uid = user.id;
+          fallbackName =
+            (user.user_metadata?.display_name as string) ||
+            user.email?.split("@")[0];
         }
-        uid = user.id;
-        fallbackName =
-          (user.user_metadata?.display_name as string) ||
-          user.email?.split("@")[0];
+
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("display_name, avatar_url")
+          .eq("id", uid)
+          .maybeSingle();
+
+        if (cancelled) return;
+
+        setResolvedUserId(uid);
+        setIsAuthenticated(true);
+        setDisplayName(
+          profile?.display_name || initialDisplayName || fallbackName || "Reader"
+        );
+        setAvatarUrl(profile?.avatar_url ?? initialAvatarUrl ?? null);
+        setClientAuthResolved(true);
+
+        await refreshSocialBadge(uid);
+      } catch {
+        if (!cancelled) {
+          setClientAuthResolved(true);
+        }
       }
-
-      setResolvedUserId(uid);
-      setIsAuthenticated(true);
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("display_name, avatar_url")
-        .eq("id", uid)
-        .maybeSingle();
-
-      setDisplayName(profile?.display_name || fallbackName || "Reader");
-      setAvatarUrl(profile?.avatar_url || null);
-
-      await refreshSocialBadge(uid);
     }
 
-    loadUserProfile();
-  }, [initialUserId, pathname, refreshSocialBadge]);
+    void loadUserProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeVariant,
+    initialUserId,
+    initialDisplayName,
+    initialAvatarUrl,
+    pathname,
+    refreshSocialBadge,
+  ]);
 
   useEffect(() => {
-    if (!resolvedUserId) return;
+    if (activeVariant === "login" || !resolvedUserId) return;
     const supabase = createClient();
     const channel = supabase
       .channel(`navbar-social-badge-${resolvedUserId}`)
@@ -214,7 +246,7 @@ export default function Navbar({
       window.removeEventListener("focus", handleFocus);
       supabase.removeChannel(channel);
     };
-  }, [resolvedUserId, refreshSocialBadge]);
+  }, [activeVariant, resolvedUserId, refreshSocialBadge]);
 
   const isHomeActive =
     pathname === "/" ||
@@ -229,220 +261,229 @@ export default function Navbar({
     false;
   const isJourneyActive = pathname?.startsWith("/journey") ?? false;
 
+  const showBrandedHeader =
+    activeVariant === "home" || activeVariant === "login";
+  const showBottomNav = activeVariant !== "login" && !hideBottomNav;
+
+  if (!showBrandedHeader && !showBottomNav) {
+    return null;
+  }
+
   return (
     <>
-      <header className="sticky top-0 z-30 bg-[#FAF9F6]/95 backdrop-blur-md border-b border-[#E6E1D6]">
-        <div className="max-w-xl mx-auto px-4 h-14 flex items-center justify-between">
-          {/* Left: App Grace Mark & Title */}
-          <Link href="/" className="flex items-center gap-2.5 group">
-            <span className="w-8 h-8 rounded-xl bg-[#4A6B5D] text-white flex items-center justify-center shadow-2xs shrink-0">
-              <svg
-                className="w-4 h-4"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M12 6.5v11M8.5 10h7" strokeLinecap="round" />
-                <path
-                  d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <path
-                  d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
-            <span className="font-editorial text-[19px] font-medium text-[#1F2937] tracking-tight">
-              Bible Community
-            </span>
-          </Link>
+      {showBrandedHeader && (
+        <header className="sticky top-0 z-30 bg-[#FAF9F6]/95 backdrop-blur-md border-b border-[#E6E1D6]">
+          <div className="max-w-xl mx-auto px-4 h-14 flex items-center justify-between">
+            {/* Left: App Grace Mark & Title */}
+            <Link href="/" className="flex items-center gap-2.5 group">
+              <span className="w-8 h-8 rounded-xl bg-[#4A6B5D] text-white flex items-center justify-center shadow-2xs shrink-0">
+                <svg
+                  className="w-4 h-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M12 6.5v11M8.5 10h7" strokeLinecap="round" />
+                  <path
+                    d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
+              <span className="font-editorial text-[19px] font-medium text-[#1F2937] tracking-tight">
+                Bible Community
+              </span>
+            </Link>
 
-          {/* Right: Quick Light/Dark Toggle + Circular Avatar + Display Name Chip -> /settings */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={toggleDarkMode}
-              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-              title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-              className="w-8 h-8 rounded-full bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] text-[#1F2937] flex items-center justify-center transition-colors cursor-pointer shrink-0"
-            >
-              {isDark ? (
-                <Sun className="w-4 h-4 text-[#B47B44]" />
-              ) : (
-                <Moon className="w-4 h-4 text-[#4A6B5D]" />
-              )}
-            </button>
+            {/* Right: Quick Light/Dark Toggle + Profile Chip or Sign In (Home only) */}
+            <div className="flex items-center gap-2">
+              <ThemeToggleButton />
 
-            {isAuthenticated ? (
-              <Link
-                href="/settings"
-                title="Personal Settings"
-                className="flex items-center gap-2 pl-1.5 pr-3 py-1 rounded-full bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] transition-colors group"
-              >
-                <span className="w-7 h-7 rounded-full overflow-hidden ring-2 ring-[#E6E1D6] group-hover:ring-[#4A6B5D] bg-[#DDE6E1] text-[#4A6B5D] flex items-center justify-center text-[11px] font-semibold shrink-0 transition-all">
-                  {avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={avatarUrl}
-                      alt={displayName || "Profile"}
-                      className="w-full h-full object-cover"
+              {activeVariant === "home" && (
+                <>
+                  {!authResolved ? (
+                    <span
+                      aria-hidden="true"
+                      className="w-24 h-8 rounded-full bg-[#F4F1EA] border border-[#E6E1D6] animate-pulse"
                     />
+                  ) : isAuthenticated ? (
+                    <Link
+                      href="/settings"
+                      title="Personal Settings"
+                      className="flex items-center gap-2 pl-1.5 pr-3 py-1 rounded-full bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] transition-colors group"
+                    >
+                      <span className="w-7 h-7 rounded-full overflow-hidden ring-2 ring-[#E6E1D6] group-hover:ring-[#4A6B5D] bg-[#DDE6E1] text-[#4A6B5D] flex items-center justify-center text-[11px] font-semibold shrink-0 transition-all">
+                        {avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={avatarUrl}
+                            alt={displayName || "Profile"}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          getInitials(displayName)
+                        )}
+                      </span>
+                      <span className="text-xs font-medium text-[#1F2937] max-w-[110px] truncate">
+                        {displayName || initialDisplayName || "Reader"}
+                      </span>
+                    </Link>
                   ) : (
-                    getInitials(displayName)
+                    <Link
+                      href="/login"
+                      className="px-3.5 py-1.5 rounded-full text-xs font-medium bg-[#4A6B5D] text-white hover:bg-[#3D5A4E] transition-colors"
+                    >
+                      Sign In
+                    </Link>
                   )}
-                </span>
-                <span className="text-xs font-medium text-[#1F2937] max-w-[110px] truncate">
-                  {displayName}
-                </span>
-              </Link>
-            ) : (
-              <Link
-                href="/login"
-                className="px-3.5 py-1.5 rounded-full text-xs font-medium bg-[#4A6B5D] text-white hover:bg-[#3D5A4E] transition-colors"
-              >
-                Sign In
-              </Link>
-            )}
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
-      {/* Minimal Bottom Navigation Bar (4 Tabs matching docs/ui-reference.html) */}
-      <nav
-        aria-label="Primary Bottom Navigation"
-        className="fixed bottom-0 inset-x-0 z-30 bg-[#FAF9F6]/95 backdrop-blur-md border-t border-[#E6E1D6]"
-      >
-        <div className="max-w-xl mx-auto px-4 pt-2 pb-4 flex items-center justify-around">
-          <Link
-            href="/"
-            className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition-colors ${
-              isHomeActive
-                ? "text-[#4A6B5D]"
-                : "text-[#6B7280] hover:text-[#1F2937]"
-            }`}
-          >
-            <div
-              className={
-                isHomeActive ? "bg-[#EBF1EE] p-1.5 rounded-xl" : "p-1.5"
-              }
-            >
-              <svg
-                className="w-5 h-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              >
-                <path
-                  d="M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-9.5z"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </div>
-            <span className="text-[10.5px] font-medium tracking-tight">
-              Home
-            </span>
-          </Link>
-
-          <Link
-            href="/reader"
-            className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition-colors ${
-              isReaderActive
-                ? "text-[#4A6B5D]"
-                : "text-[#6B7280] hover:text-[#1F2937]"
-            }`}
-          >
-            <div
-              className={
-                isReaderActive ? "bg-[#EBF1EE] p-1.5 rounded-xl" : "p-1.5"
-              }
-            >
-              <svg
-                className="w-5 h-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              >
-                <path
-                  d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"
-                  strokeLinecap="round"
-                />
-                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-              </svg>
-            </div>
-            <span className="text-[10.5px] font-medium tracking-tight">
-              Reader
-            </span>
-          </Link>
-
-          <Link
-            href="/social"
-            className={`relative flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition-colors ${
-              isSocialActive
-                ? "text-[#4A6B5D]"
-                : "text-[#6B7280] hover:text-[#1F2937]"
-            }`}
-          >
-            <div
-              className={`relative ${
-                isSocialActive ? "bg-[#EBF1EE] p-1.5 rounded-xl" : "p-1.5"
+      {/* Minimal Bottom Navigation Bar */}
+      {showBottomNav && (
+        <nav
+          aria-label="Primary Bottom Navigation"
+          className="fixed bottom-0 inset-x-0 z-30 bg-[#FAF9F6]/95 backdrop-blur-md border-t border-[#E6E1D6]"
+        >
+          <div className="max-w-xl mx-auto px-4 pt-2 pb-4 flex items-center justify-around">
+            <Link
+              href="/"
+              className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition-colors ${
+                isHomeActive
+                  ? "text-[#4A6B5D]"
+                  : "text-[#6B7280] hover:text-[#1F2937]"
               }`}
             >
-              <svg
-                className="w-5 h-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
+              <div
+                className={
+                  isHomeActive ? "bg-[#EBF1EE] p-1.5 rounded-xl" : "p-1.5"
+                }
               >
-                <circle cx="9" cy="7" r="4" />
-                <path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
-                <circle cx="17" cy="9" r="3" />
-                <path d="M21 21v-1.5a3 3 0 0 0-2.5-2.96" />
-              </svg>
-              {hasSocialBadge && (
-                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#4A6B5D] ring-2 ring-[#FAF9F6] dark:ring-[#141413]" />
-              )}
-            </div>
-            <span className="text-[10.5px] font-medium tracking-tight">
-              Social
-            </span>
-          </Link>
+                <svg
+                  className="w-5 h-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                >
+                  <path
+                    d="M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-9.5z"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+              <span className="text-[10.5px] font-medium tracking-tight">
+                Home
+              </span>
+            </Link>
 
-          <Link
-            href="/journey"
-            className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition-colors ${
-              isJourneyActive
-                ? "text-[#4A6B5D]"
-                : "text-[#6B7280] hover:text-[#1F2937]"
-            }`}
-          >
-            <div
-              className={
-                isJourneyActive ? "bg-[#EBF1EE] p-1.5 rounded-xl" : "p-1.5"
-              }
+            <Link
+              href="/reader"
+              className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition-colors ${
+                isReaderActive
+                  ? "text-[#4A6B5D]"
+                  : "text-[#6B7280] hover:text-[#1F2937]"
+              }`}
             >
-              <svg
-                className="w-5 h-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
+              <div
+                className={
+                  isReaderActive ? "bg-[#EBF1EE] p-1.5 rounded-xl" : "p-1.5"
+                }
               >
-                <circle cx="12" cy="12" r="9" />
-                <path d="M12 7v5l3 2" strokeLinecap="round" />
-              </svg>
-            </div>
-            <span className="text-[10.5px] font-medium tracking-tight">
-              Journey
-            </span>
-          </Link>
-        </div>
-      </nav>
+                <svg
+                  className="w-5 h-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                >
+                  <path
+                    d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"
+                    strokeLinecap="round"
+                  />
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                </svg>
+              </div>
+              <span className="text-[10.5px] font-medium tracking-tight">
+                Reader
+              </span>
+            </Link>
+
+            <Link
+              href="/social"
+              className={`relative flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition-colors ${
+                isSocialActive
+                  ? "text-[#4A6B5D]"
+                  : "text-[#6B7280] hover:text-[#1F2937]"
+              }`}
+            >
+              <div
+                className={`relative ${
+                  isSocialActive ? "bg-[#EBF1EE] p-1.5 rounded-xl" : "p-1.5"
+                }`}
+              >
+                <svg
+                  className="w-5 h-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                >
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
+                  <circle cx="17" cy="9" r="3" />
+                  <path d="M21 21v-1.5a3 3 0 0 0-2.5-2.96" />
+                </svg>
+                {hasSocialBadge && (
+                  <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#4A6B5D] ring-2 ring-[#FAF9F6] dark:ring-[#141413]" />
+                )}
+              </div>
+              <span className="text-[10.5px] font-medium tracking-tight">
+                Social
+              </span>
+            </Link>
+
+            <Link
+              href="/journey"
+              className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition-colors ${
+                isJourneyActive
+                  ? "text-[#4A6B5D]"
+                  : "text-[#6B7280] hover:text-[#1F2937]"
+              }`}
+            >
+              <div
+                className={
+                  isJourneyActive ? "bg-[#EBF1EE] p-1.5 rounded-xl" : "p-1.5"
+                }
+              >
+                <svg
+                  className="w-5 h-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                >
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 7v5l3 2" strokeLinecap="round" />
+                </svg>
+              </div>
+              <span className="text-[10.5px] font-medium tracking-tight">
+                Journey
+              </span>
+            </Link>
+          </div>
+        </nav>
+      )}
     </>
   );
 }

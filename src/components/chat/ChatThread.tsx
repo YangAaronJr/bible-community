@@ -894,18 +894,18 @@ export default function ChatThread({
     BIBLE_BOOKS.find((b) => b.name === verseBook) || BIBLE_BOOKS[0];
 
   return (
-    <div className="bg-[#FAF9F6] border border-[#E6E1D6] rounded-3xl overflow-hidden flex flex-col h-[calc(100dvh-9.5rem)] shadow-2xs">
-      {/* Top Chat Header */}
-      <div className="px-4 py-2.5 bg-[#FAF9F6] border-b border-[#E6E1D6] flex items-center justify-between gap-2 shrink-0">
-        <div className="flex items-center gap-2.5 min-w-0">
+    <div className="bg-[#FAF9F6] flex-1 min-h-0 overflow-hidden flex flex-col">
+      {/* Compact Top Chat Header */}
+      <div className="px-3 sm:px-4 py-2 bg-[#FAF9F6] border-b border-[#E6E1D6] flex items-center justify-between gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
           {onBack && (
             <button
               type="button"
               onClick={onBack}
               aria-label="Back"
-              className="w-8 h-8 rounded-full hover:bg-[#F4F1EA] flex items-center justify-center text-[#1F2937] shrink-0 cursor-pointer"
+              className="w-7 h-7 rounded-full hover:bg-[#F4F1EA] flex items-center justify-center text-[#1F2937] shrink-0 cursor-pointer"
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-4 h-4" />
             </button>
           )}
           {(mode === "dm" || mode === "circle-dm") && peerUserId && (
@@ -916,15 +916,19 @@ export default function ChatThread({
                   display_name: title,
                   avatar_url: headerAvatarUrl,
                 },
-                36
+                32
               )}
             </Link>
           )}
           <div className="min-w-0">
-            <h2 className="text-[15px] font-semibold text-[#1F2937] truncate">
+            <h2 className="text-[14px] leading-tight font-semibold text-[#1F2937] truncate">
               {title}
             </h2>
-            <p className="text-[11px] text-[#6B7280] truncate">{subtitle}</p>
+            {subtitle && (
+              <p className="text-[10.5px] leading-tight text-[#6B7280] truncate">
+                {subtitle}
+              </p>
+            )}
           </div>
         </div>
 
@@ -935,10 +939,10 @@ export default function ChatThread({
             onClick={() => setShowThreadsIndex(true)}
             aria-label="Open active threads"
             title="Active Threads"
-            className="inline-flex items-center gap-1 px-2.5 h-8 rounded-xl bg-[#F4F1EA] hover:bg-[#EAE5DA] text-xs font-medium text-[#1F2937] transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1 px-2 sm:px-2.5 h-8 rounded-xl bg-[#F4F1EA] hover:bg-[#EAE5DA] text-xs font-medium text-[#1F2937] transition-colors cursor-pointer"
           >
             <MessagesSquare className="w-3.5 h-3.5 text-[#4A6B5D]" />
-            <span>Threads</span>
+            <span className="hidden sm:inline">Threads</span>
             {activeThreads.length > 0 && (
               <span className="px-1.5 py-[0.5px] rounded-full bg-[#EBF1EE] text-[#4A6B5D] text-[10px] font-semibold">
                 {activeThreads.length}
@@ -1611,6 +1615,7 @@ export default function ChatThread({
           </div>
           <button
             type="button"
+            aria-label="Cancel compose mode"
             onClick={() => {
               setTopicTitle("");
               setComposeMode("text");

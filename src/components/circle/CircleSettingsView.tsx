@@ -14,6 +14,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { getInitials } from "@/components/ui/Navbar";
+import QuietPageHeader from "@/components/ui/QuietPageHeader";
 import { READING_PLAN_PRESETS } from "@/lib/plans/reading-plans";
 import { extractStorageObjectPath } from "@/lib/storage/paths";
 import { createClient } from "@/lib/supabase/client";
@@ -310,29 +311,47 @@ export default function CircleSettingsView({
 
   if (loading) {
     return (
-      <div className="p-8 bg-white border border-[#E6E1D6] rounded-2xl flex items-center justify-center text-xs text-[#6B7280]">
-        <Loader2 className="w-4 h-4 animate-spin mr-2" />
-        Loading circle settings...
+      <div className="space-y-5">
+        <QuietPageHeader
+          title="Circle Settings"
+          backHref={onBack ? undefined : `/circles/${circleId}`}
+          onBack={onBack}
+          backLabel="Back to Circle"
+          showThemeSettings={!onBack}
+        />
+        <div className="p-8 bg-white border border-[#E6E1D6] rounded-2xl flex items-center justify-center text-xs text-[#6B7280]">
+          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+          Loading circle settings...
+        </div>
       </div>
     );
   }
 
   if (!circle) {
     return (
-      <div className="bg-white border border-[#E6E1D6] rounded-2xl p-6 text-center space-y-3">
-        <p className="font-editorial text-lg font-medium text-[#1F2937]">
-          Circle Not Found
-        </p>
-        <p className="text-xs text-[#6B7280]">
-          You may not be a member of this circle.
-        </p>
-        <Link
-          href="/social"
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] dark:bg-[#63826A] dark:hover:bg-[#7C9A82] text-white text-xs font-medium transition-colors"
-        >
-          <ChevronLeft className="w-3.5 h-3.5" />
-          <span>Back to Social</span>
-        </Link>
+      <div className="space-y-5">
+        <QuietPageHeader
+          title="Circle Settings"
+          backHref={onBack ? undefined : "/social"}
+          onBack={onBack}
+          backLabel="Back to Social"
+          showThemeSettings={!onBack}
+        />
+        <div className="bg-white border border-[#E6E1D6] rounded-2xl p-6 text-center space-y-3">
+          <p className="font-editorial text-lg font-medium text-[#1F2937]">
+            Circle Not Found
+          </p>
+          <p className="text-xs text-[#6B7280]">
+            You may not be a member of this circle.
+          </p>
+          <Link
+            href="/social"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#4A6B5D] hover:bg-[#3D5A4E] dark:bg-[#63826A] dark:hover:bg-[#7C9A82] text-white text-xs font-medium transition-colors"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            <span>Back to Social</span>
+          </Link>
+        </div>
       </div>
     );
   }
@@ -340,31 +359,13 @@ export default function CircleSettingsView({
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          {onBack ? (
-            <button
-              type="button"
-              onClick={onBack}
-              aria-label="Back to Circle"
-              className="w-9 h-9 rounded-full bg-[#F4F1EA] border border-[#E6E1D6] flex items-center justify-center text-[#1F2937] hover:bg-[#EAE5DA] transition-colors shrink-0 cursor-pointer"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-          ) : (
-            <Link
-              href={`/circles/${circle.id}`}
-              aria-label="Back to Circle"
-              className="w-9 h-9 rounded-full bg-[#F4F1EA] border border-[#E6E1D6] flex items-center justify-center text-[#1F2937] hover:bg-[#EAE5DA] transition-colors shrink-0"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </Link>
-          )}
-          <h1 className="font-editorial text-[26px] leading-none font-medium text-[#1F2937] tracking-tight truncate">
-            Circle Settings
-          </h1>
-        </div>
-      </div>
+      <QuietPageHeader
+        title="Circle Settings"
+        backHref={onBack ? undefined : `/circles/${circle.id}`}
+        onBack={onBack}
+        backLabel="Back to Circle"
+        showThemeSettings={!onBack}
+      />
 
       {feedback && (
         <div

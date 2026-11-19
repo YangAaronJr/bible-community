@@ -12,6 +12,10 @@ import {
   X,
 } from "lucide-react";
 import { getInitials } from "@/components/ui/Navbar";
+import {
+  FellowshipRingsMark,
+  OpenBookMark,
+} from "@/components/ui/MinimalIllustrations";
 import { createClient } from "@/lib/supabase/client";
 
 interface AcceptedFriend {
@@ -506,7 +510,7 @@ export default function SocialHub({
   );
 
   return (
-    <div className="space-y-6 py-2">
+    <div className="space-y-6">
       {feedback && !drawer && (
         <div
           className={`px-4 py-2.5 rounded-2xl text-xs font-medium border ${
@@ -562,10 +566,11 @@ export default function SocialHub({
 
             {friends.length === 0 ? (
               <div className="bg-white border border-[#E6E1D6] rounded-2xl p-6 text-center space-y-3">
-                <p className="text-xs text-[#6B7280] leading-relaxed">
+                <FellowshipRingsMark className="w-8 h-8 text-[#4A6B5D] mx-auto opacity-80" />
+                <p className="text-xs text-[#6B7280]">
                   {incomingRequests.length > 0
-                    ? `You have ${incomingRequests.length} pending friend request${incomingRequests.length === 1 ? "" : "s"} waiting.`
-                    : "Connect 1-on-1 with trusted friends using their Friend Code."}
+                    ? `${incomingRequests.length} pending request${incomingRequests.length === 1 ? "" : "s"}`
+                    : "No friends yet"}
                 </p>
                 <button
                   type="button"
@@ -646,10 +651,8 @@ export default function SocialHub({
 
             {circles.length === 0 ? (
               <div className="bg-white border border-[#E6E1D6] rounded-2xl p-6 text-center space-y-3">
-                <p className="text-xs text-[#6B7280]">
-                  Start an invite-only reading circle or enter a group invite
-                  code.
-                </p>
+                <OpenBookMark className="w-8 h-8 text-[#4A6B5D] mx-auto opacity-80" />
+                <p className="text-xs text-[#6B7280]">No circles yet</p>
                 <div className="flex items-center justify-center gap-2.5">
                   <button
                     type="button"

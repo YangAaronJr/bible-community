@@ -15,6 +15,9 @@ import {
   UserPlus,
 } from "lucide-react";
 import { getInitials } from "@/components/ui/Navbar";
+import QuietPageHeader, {
+  ThemeSettingsCluster,
+} from "@/components/ui/QuietPageHeader";
 import { triggerRingPush } from "@/lib/notifications/push-client";
 import { createClient } from "@/lib/supabase/client";
 
@@ -480,26 +483,42 @@ export default function MemberProfileView({
 
   if (loading) {
     return (
-      <div className="py-12 flex items-center justify-center text-xs text-[#6B7280]">
-        <Loader2 className="w-4 h-4 animate-spin mr-2" />
-        Loading profile...
+      <div className="space-y-5">
+        <QuietPageHeader
+          onBack={handleBack}
+          title="Member Profile"
+          titleAs="span"
+          className="border-b border-[#E6E1D6] pb-3"
+        />
+        <div className="py-12 flex items-center justify-center text-xs text-[#6B7280]">
+          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+          Loading profile...
+        </div>
       </div>
     );
   }
 
   if (!profile) {
     return (
-      <div className="bg-white border border-[#E6E1D6] rounded-2xl p-8 text-center space-y-3">
-        <p className="font-editorial text-lg text-[#1F2937]">
-          Member not found
-        </p>
-        <Link
-          href="/social"
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#4A6B5D] text-white text-xs font-medium"
-        >
-          <ChevronLeft className="w-3.5 h-3.5" />
-          <span>Back to Social</span>
-        </Link>
+      <div className="space-y-5">
+        <QuietPageHeader
+          onBack={handleBack}
+          title="Member Profile"
+          titleAs="span"
+          className="border-b border-[#E6E1D6] pb-3"
+        />
+        <div className="bg-white border border-[#E6E1D6] rounded-2xl p-8 text-center space-y-3">
+          <p className="font-editorial text-lg text-[#1F2937]">
+            Member not found
+          </p>
+          <Link
+            href="/social"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#4A6B5D] text-white text-xs font-medium"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            <span>Back to Social</span>
+          </Link>
+        </div>
       </div>
     );
   }
@@ -546,7 +565,7 @@ export default function MemberProfileView({
         <span className="font-editorial text-base font-semibold text-[#1F2937]">
           Member Profile
         </span>
-        <div className="w-12" />
+        <ThemeSettingsCluster />
       </div>
 
       {feedback && (

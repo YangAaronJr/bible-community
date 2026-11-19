@@ -12,6 +12,7 @@ import {
   Sun,
 } from "lucide-react";
 import Navbar, { getInitials } from "@/components/ui/Navbar";
+import QuietPageHeader from "@/components/ui/QuietPageHeader";
 import { extractStorageObjectPath } from "@/lib/storage/paths";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -199,6 +200,7 @@ export default function SettingsPage() {
         (next === "system" &&
           window.matchMedia("(prefers-color-scheme: dark)").matches);
       document.documentElement.classList.toggle("dark", isDark);
+      window.dispatchEvent(new Event("theme-change"));
     }
   }
 
@@ -293,27 +295,24 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF9F6] text-[#1F2937] pb-24">
-      <Navbar />
+      <Navbar variant="inner" />
 
-      <main className="flex-1 max-w-xl w-full mx-auto px-5 py-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="font-editorial text-[28px] leading-none font-medium text-[#1F2937] tracking-tight">
-              Settings
-            </h1>
-            <p className="text-xs text-[#6B7280] mt-1">
-              Profile, appearance &amp; notifications
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={handleSignOut}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] text-xs font-medium text-[#1F2937] transition-colors cursor-pointer"
-          >
-            <LogOut className="w-3.5 h-3.5 text-[#6B7280]" />
-            <span>Sign Out</span>
-          </button>
-        </div>
+      <main className="flex-1 max-w-xl w-full mx-auto px-5 pt-4 pb-6 space-y-6">
+        <QuietPageHeader
+          title="Settings"
+          subtitle="Profile, appearance & notifications"
+          showThemeSettings={false}
+          rightSlot={
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#F4F1EA] hover:bg-[#EAE5DA] border border-[#E6E1D6] text-xs font-medium text-[#1F2937] transition-colors cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5 text-[#6B7280]" />
+              <span>Sign Out</span>
+            </button>
+          }
+        />
 
         {feedback && (
           <div
@@ -398,14 +397,9 @@ export default function SettingsPage() {
 
             {/* 2. Appearance (Light / Dark / System) */}
             <section className="bg-white border border-[#E6E1D6] rounded-2xl p-5 space-y-3">
-              <div>
-                <h2 className="font-editorial text-base font-semibold text-[#1F2937]">
-                  Appearance
-                </h2>
-                <p className="text-xs text-[#6B7280]">
-                  Choose warm paper light mode or eye-friendly night reading
-                </p>
-              </div>
+              <h2 className="font-editorial text-base font-semibold text-[#1F2937]">
+                Appearance
+              </h2>
 
               <div className="grid grid-cols-3 gap-2 p-1 rounded-2xl bg-[#F4F1EA] border border-[#E6E1D6]">
                 {(
@@ -446,8 +440,8 @@ export default function SettingsPage() {
                 </div>
                 <p className="text-xs text-[#6B7280] mt-0.5">
                   {pushSupported
-                    ? "Receive a gentle lock-screen reminder when a friend or Circle member sends a Ring, even when the app is closed."
-                    : "Web Push notifications require a supported mobile or desktop browser."}
+                    ? "Gentle lock-screen reminders"
+                    : "Unsupported browser"}
                 </p>
               </div>
 
