@@ -680,7 +680,23 @@ export default function HomeClient({
     READING_PLAN_PRESETS.find((p) => p.id === planId) ||
     READING_PLAN_PRESETS[0];
 
-  const effectiveSequence = activePlan.sequence;
+  const effectiveSequence: ChapterRef[] =
+    activeCustomSchedule && activeCustomSchedule.schedule_items.length > 0
+      ? (() => {
+          const seen = new Set<string>();
+          const seq: ChapterRef[] = [];
+          for (const slot of activeCustomSchedule.schedule_items) {
+            for (const ch of resolveTrackSequence(slot.track)) {
+              const k = chapterKey(ch.book, ch.chapter);
+              if (!seen.has(k)) {
+                seen.add(k);
+                seq.push(ch);
+              }
+            }
+          }
+          return seq;
+        })()
+      : activePlan.sequence;
 
   const completedInPlan = effectiveSequence.filter((c) =>
     progressMap.has(chapterKey(c.book, c.chapter))

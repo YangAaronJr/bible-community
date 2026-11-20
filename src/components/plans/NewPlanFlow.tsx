@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Check, ChevronDown, Loader2, Sparkles, X } from "lucide-react";
 import {
   BIBLE_BOOKS,
@@ -62,6 +62,19 @@ export default function NewPlanFlow({
 
   const [chaptersPerDay, setChaptersPerDay] = useState<1 | 2 | 3>(1);
   const [restDays, setRestDays] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (!open) return;
+    setStep(1);
+    setTab("presets");
+    setSelectedPresetId(initialPresetId);
+    setExpandedPresetIds(new Set());
+    setCustomTitle("");
+    setTestamentFilter("NT");
+    setSelectedBooks(["John"]);
+    setChaptersPerDay(1);
+    setRestDays([]);
+  }, [open, initialPresetId]);
 
   const selectedPreset: ReadingPlanPreset = useMemo(
     () =>

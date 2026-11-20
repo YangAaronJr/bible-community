@@ -99,7 +99,7 @@ export default function CircleSettingsView({
           .maybeSingle(),
         supabase
           .from("custom_schedules")
-          .select("id")
+          .select("id, title, schedule_items")
           .eq("user_id", uid)
           .eq("is_active", true)
           .limit(1)
@@ -119,8 +119,23 @@ export default function CircleSettingsView({
     setSharedPlanId(planVal);
 
     if (typeof window !== "undefined" && planVal) {
-      const localPlan = localStorage.getItem("selected_reading_plan");
-      setMyPlanSynced(!activeCustom && localPlan === planVal);
+      const parsedShared = parseSharedPlan(planVal);
+      if (parsedShared?.kind === "custom") {
+        const items = Array.isArray(activeCustom?.schedule_items)
+          ? (activeCustom.schedule_items as unknown as CustomScheduleSlot[])
+          : [];
+        const expectedTrack = parsedShared.custom.books.join(", ");
+        const matchesCustom =
+          Boolean(activeCustom) &&
+          activeCustom?.title === parsedShared.custom.title &&
+          items.length === 1 &&
+          items[0]?.track === expectedTrack &&
+          (items[0]?.chaptersPerDay || 1) === parsedShared.custom.chaptersPerDay;
+        setMyPlanSynced(matchesCustom);
+      } else {
+        const localPlan = localStorage.getItem("selected_reading_plan");
+        setMyPlanSynced(!activeCustom && localPlan === planVal);
+      }
     } else {
       setMyPlanSynced(false);
     }
@@ -293,10 +308,11 @@ export default function CircleSettingsView({
           .eq("user_id", userId);
         if (error) throw error;
       } else {
-        await supabase
+        const { error: deactivateErr } = await supabase
           .from("custom_schedules")
           .update({ is_active: false })
           .eq("user_id", userId);
+        if (deactivateErr) throw deactivateErr;
 
         const items: CustomScheduleSlot[] = [
           {
