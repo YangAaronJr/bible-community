@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Check,
@@ -91,6 +91,13 @@ export default function SocialHub({
   const [drawer, setDrawer] = useState<ActiveDrawer>(null);
   const [friendCodeInput, setFriendCodeInput] = useState("");
   const [copiedCode, setCopiedCode] = useState(false);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    };
+  }, []);
 
   const [newCircleName, setNewCircleName] = useState("");
   const [creatorIsLeader, setCreatorIsLeader] = useState(false);
@@ -314,7 +321,11 @@ export default function SocialHub({
     try {
       await navigator.clipboard.writeText(myFriendCode);
       setCopiedCode(true);
-      setTimeout(() => setCopiedCode(false), 1800);
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = setTimeout(() => {
+        setCopiedCode(false);
+        copiedTimerRef.current = null;
+      }, 1800);
     } catch {
       // Ignore clipboard permission errors
     }

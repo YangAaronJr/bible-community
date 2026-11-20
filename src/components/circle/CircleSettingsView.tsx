@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -63,10 +63,17 @@ export default function CircleSettingsView({
   const [confirmingLeave, setConfirmingLeave] = useState(false);
   const [leavingCircle, setLeavingCircle] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    };
+  }, []);
 
   const loadCircleSettings = useCallback(async () => {
     const supabase = createClient();
@@ -526,7 +533,11 @@ export default function CircleSettingsView({
             onClick={() => {
               navigator.clipboard.writeText(circle.invite_code);
               setCopiedCode(true);
-              setTimeout(() => setCopiedCode(false), 2000);
+              if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+              copiedTimerRef.current = setTimeout(() => {
+                setCopiedCode(false);
+                copiedTimerRef.current = null;
+              }, 2000);
             }}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-[#E6E1D6] text-xs font-semibold text-[#4A6B5D] hover:bg-[#EBF1EE] transition-colors cursor-pointer"
           >

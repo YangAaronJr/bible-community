@@ -60,6 +60,7 @@ export default function FriendDmRoom({
   const [notFoundReason, setNotFoundReason] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     async function loadDmContext() {
       const supabase = createClient();
       let uid = initialUserId ?? null;
@@ -69,6 +70,7 @@ export default function FriendDmRoom({
         } = await supabase.auth.getUser();
         uid = user?.id ?? null;
       }
+      if (cancelled) return;
 
       if (!uid) {
         setLoading(false);
@@ -81,6 +83,7 @@ export default function FriendDmRoom({
         .select("id, requester_id, addressee_id, status")
         .eq("id", friendshipId)
         .maybeSingle();
+      if (cancelled) return;
 
       if (!friendship) {
         setNotFoundReason("Conversation not found.");
@@ -105,6 +108,7 @@ export default function FriendDmRoom({
         .from("profiles")
         .select("id, display_name, avatar_url")
         .in("id", [uid, peerId]);
+      if (cancelled) return;
 
       const profMap = new Map((profiles || []).map((p) => [p.id, p]));
       const meProf = profMap.get(uid);
@@ -124,10 +128,14 @@ export default function FriendDmRoom({
       setPeer(peerParticipant);
       setParticipants([meParticipant, peerParticipant]);
       await markDmRead(uid, friendshipId);
+      if (cancelled) return;
       setLoading(false);
     }
 
     loadDmContext();
+    return () => {
+      cancelled = true;
+    };
   }, [friendshipId, initialUserId]);
 
   const handleMessagesUpdated = useCallback(
