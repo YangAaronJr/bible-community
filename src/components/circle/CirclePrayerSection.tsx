@@ -90,8 +90,15 @@ export default function CirclePrayerSection({
   }, [circle.id]);
 
   useEffect(() => {
-    setLoading(true);
-    loadPrayers();
+    let active = true;
+    Promise.resolve().then(() => {
+      if (!active) return;
+      setLoading(true);
+      void loadPrayers();
+    });
+    return () => {
+      active = false;
+    };
   }, [loadPrayers]);
 
   // Live Supabase Realtime for prayer_requests & prayer_responses

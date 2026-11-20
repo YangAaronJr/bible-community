@@ -3,7 +3,6 @@
 import { Suspense, useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  BookMarked,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
@@ -131,18 +130,25 @@ function ReaderContent() {
 
   // Restore saved translation preference from localStorage
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(TRANSLATION_STORAGE_KEY);
-      if (isValidTranslation(saved)) {
-        setTranslation(saved);
-        const meta = BIBLE_TRANSLATIONS.find((t) => t.id === saved);
-        if (meta) setTranslationName(meta.name);
+    let active = true;
+    Promise.resolve().then(() => {
+      if (!active) return;
+      try {
+        const saved = localStorage.getItem(TRANSLATION_STORAGE_KEY);
+        if (isValidTranslation(saved)) {
+          setTranslation(saved);
+          const meta = BIBLE_TRANSLATIONS.find((t) => t.id === saved);
+          if (meta) setTranslationName(meta.name);
+        }
+      } catch {
+        // Ignore storage read errors
+      } finally {
+        if (active) setTranslationReady(true);
       }
-    } catch {
-      // Ignore storage read errors
-    } finally {
-      setTranslationReady(true);
-    }
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleTranslationChange = (next: BibleTranslationId) => {
@@ -187,47 +193,60 @@ function ReaderContent() {
   }, [book]);
 
   useEffect(() => {
-    const qBook = searchParams.get("book");
-    const hasValidBook = Boolean(
-      qBook && BIBLE_BOOKS.some((b) => b.name === qBook)
-    );
-    const resolvedBook = hasValidBook && qBook ? qBook : bookRef.current;
-    if (hasValidBook && qBook) {
-      setBook(qBook);
-    }
-    const rawChapterParam = searchParams.get("chapter");
-    if (rawChapterParam !== null) {
-      setChapter(clampChapter(resolvedBook, Number(rawChapterParam)));
-    } else if (hasValidBook && qBook) {
-      setChapter((prev) => clampChapter(qBook, prev));
-    }
+    let active = true;
+    Promise.resolve().then(() => {
+      if (!active) return;
+      const qBook = searchParams.get("book");
+      const hasValidBook = Boolean(
+        qBook && BIBLE_BOOKS.some((b) => b.name === qBook)
+      );
+      const resolvedBook = hasValidBook && qBook ? qBook : bookRef.current;
+      if (hasValidBook && qBook) {
+        setBook(qBook);
+      }
+      const rawChapterParam = searchParams.get("chapter");
+      if (rawChapterParam !== null) {
+        setChapter(clampChapter(resolvedBook, Number(rawChapterParam)));
+      } else if (hasValidBook && qBook) {
+        setChapter((prev) => clampChapter(qBook, prev));
+      }
+    });
+    return () => {
+      active = false;
+    };
   }, [searchParams]);
 
   // Load Bible chapter text via helloao.org with bible-api.com fallback
   useEffect(() => {
     if (!translationReady) return;
     let cancelled = false;
-    setLoadingText(true);
-    setTextError(null);
 
-    fetchChapter(book, chapter, translation)
-      .then((res) => {
-        if (!cancelled) {
-          setVerses(res.verses);
-          if (res.translation_name) {
-            setTranslationName(res.translation_name);
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      setLoadingText(true);
+      setTextError(null);
+
+      fetchChapter(book, chapter, translation)
+        .then((res) => {
+          if (!cancelled) {
+            setVerses(res.verses);
+            if (res.translation_name) {
+              setTranslationName(res.translation_name);
+            }
+            setLoadingText(false);
           }
-          setLoadingText(false);
-        }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setTextError(
-            err instanceof Error ? err.message : "Failed to load chapter text."
-          );
-          setLoadingText(false);
-        }
-      });
+        })
+        .catch((err: unknown) => {
+          if (!cancelled) {
+            setTextError(
+              err instanceof Error
+                ? err.message
+                : "Failed to load chapter text."
+            );
+            setLoadingText(false);
+          }
+        });
+    });
 
     return () => {
       cancelled = true;
@@ -332,7 +351,13 @@ function ReaderContent() {
   }, [userId, book, chapter]);
 
   useEffect(() => {
-    loadChapterMetadata();
+    let active = true;
+    Promise.resolve().then(() => {
+      if (active) void loadChapterMetadata();
+    });
+    return () => {
+      active = false;
+    };
   }, [loadChapterMetadata]);
 
   function navigateTo(nextBook: string, nextChapter: number) {

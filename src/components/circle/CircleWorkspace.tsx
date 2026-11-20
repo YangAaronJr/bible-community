@@ -273,7 +273,13 @@ export default function CircleWorkspace({
   }, [circleId, initialUserId]);
 
   useEffect(() => {
-    loadCircleRoom();
+    let active = true;
+    Promise.resolve().then(() => {
+      if (active) void loadCircleRoom();
+    });
+    return () => {
+      active = false;
+    };
   }, [loadCircleRoom]);
 
   // Clear temporary 15-minute Ring halos when they expire

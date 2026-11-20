@@ -282,7 +282,13 @@ export default function MemberProfileView({
   }, [memberId, initialUserId]);
 
   useEffect(() => {
-    loadMemberProfile();
+    let active = true;
+    Promise.resolve().then(() => {
+      if (active) void loadMemberProfile();
+    });
+    return () => {
+      active = false;
+    };
   }, [loadMemberProfile]);
 
   async function handleAddFriend() {

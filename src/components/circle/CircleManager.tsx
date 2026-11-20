@@ -189,18 +189,30 @@ export default function CircleManager({
   );
 
   useEffect(() => {
-    loadCircles();
+    let active = true;
+    Promise.resolve().then(() => {
+      if (active) void loadCircles();
+    });
+    return () => {
+      active = false;
+    };
   }, [loadCircles]);
 
   useEffect(() => {
+    let active = true;
     if (activeCircleId) {
       if (typeof window !== "undefined") {
         localStorage.setItem("active_circle_id", activeCircleId);
       }
-      loadMembersAndRings(activeCircleId);
+      Promise.resolve().then(() => {
+        if (active) void loadMembersAndRings(activeCircleId);
+      });
     } else {
       onActiveCircleChange?.(null, [], userId);
     }
+    return () => {
+      active = false;
+    };
   }, [activeCircleId, loadMembersAndRings, onActiveCircleChange, userId]);
 
   async function handleSendRing(target: CircleMemberProfile) {

@@ -26,7 +26,18 @@ interface ReaderSelectorSheetProps {
  * Custom dark-mode-compatible bottom drawer / centered modal selector
  * replacing native <select> elements for Book, Chapter, and Translation.
  */
-export default function ReaderSelectorSheet({
+export default function ReaderSelectorSheet(props: ReaderSelectorSheetProps) {
+  if (!props.openSelector) return null;
+  return (
+    <ReaderSelectorSheetInner
+      key={props.openSelector}
+      {...props}
+      openSelector={props.openSelector}
+    />
+  );
+}
+
+function ReaderSelectorSheetInner({
   openSelector,
   book,
   chapter,
@@ -36,7 +47,9 @@ export default function ReaderSelectorSheet({
   onSelectChapter,
   onSelectTranslation,
   onClose,
-}: ReaderSelectorSheetProps) {
+}: Omit<ReaderSelectorSheetProps, "openSelector"> & {
+  openSelector: ReaderSelectorType;
+}) {
   const [bookQuery, setBookQuery] = useState("");
   const [testamentFilter, setTestamentFilter] = useState<"ALL" | "OT" | "NT">(
     "ALL"
@@ -44,10 +57,6 @@ export default function ReaderSelectorSheet({
   const activeItemRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
-    if (!openSelector) return;
-    setBookQuery("");
-    setTestamentFilter("ALL");
-
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -62,9 +71,7 @@ export default function ReaderSelectorSheet({
       window.removeEventListener("keydown", onKeyDown);
       cancelAnimationFrame(raf);
     };
-  }, [openSelector, onClose]);
-
-  if (!openSelector) return null;
+  }, [onClose]);
 
   const title =
     openSelector === "book"

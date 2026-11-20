@@ -103,7 +103,13 @@ export default function CircleDirectory() {
   }, []);
 
   useEffect(() => {
-    loadDirectory();
+    let active = true;
+    Promise.resolve().then(() => {
+      if (active) void loadDirectory();
+    });
+    return () => {
+      active = false;
+    };
   }, [loadDirectory]);
 
   async function handleCreateCircle(e: React.FormEvent) {

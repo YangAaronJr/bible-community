@@ -419,8 +419,15 @@ export default function ChatThread({
   ]);
 
   useEffect(() => {
-    setLoading(true);
-    loadMessages();
+    let active = true;
+    Promise.resolve().then(() => {
+      if (!active) return;
+      setLoading(true);
+      void loadMessages();
+    });
+    return () => {
+      active = false;
+    };
   }, [loadMessages]);
 
   async function handleLoadOlderMessages() {

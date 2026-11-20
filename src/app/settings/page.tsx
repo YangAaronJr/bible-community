@@ -72,7 +72,9 @@ export default function SettingsPage() {
   }, [router]);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    let active = true;
+    Promise.resolve().then(() => {
+      if (!active || typeof window === "undefined") return;
       const savedTheme = localStorage.getItem("theme_preference");
       if (
         savedTheme === "light" ||
@@ -92,12 +94,15 @@ export default function SettingsPage() {
           .getRegistration("/sw.js")
           .then((reg) => reg?.pushManager.getSubscription())
           .then((sub) => {
-            setPushEnabled(Boolean(sub));
+            if (active) setPushEnabled(Boolean(sub));
           })
           .catch(() => {});
       }
-    }
-    loadSettings();
+      void loadSettings();
+    });
+    return () => {
+      active = false;
+    };
   }, [loadSettings]);
 
   async function handleTogglePushNotifications() {

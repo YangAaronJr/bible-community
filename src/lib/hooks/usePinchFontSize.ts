@@ -174,7 +174,7 @@ export function usePinchFontSize<T extends HTMLElement = HTMLDivElement>({
       el.removeEventListener("touchcancel", handleTouchEnd);
       el.removeEventListener("wheel", handleWheel);
     };
-  }, [storageKey, minScale, maxScale]);
+  }, [containerRef, storageKey, minScale, maxScale]);
 
   return { containerRef, scale };
 }

@@ -294,8 +294,12 @@ export default function CircleDocsView({
       accessTokenRef.current = session?.access_token ?? null;
     });
 
-    setLoading(true);
-    loadDocs();
+    let active = true;
+    Promise.resolve().then(() => {
+      if (!active) return;
+      setLoading(true);
+      void loadDocs();
+    });
     const handlePageHide = () => {
       if (!flushPendingSaveKeepalive()) {
         void flushPendingSave();
@@ -303,6 +307,7 @@ export default function CircleDocsView({
     };
     window.addEventListener("pagehide", handlePageHide);
     return () => {
+      active = false;
       subscription.unsubscribe();
       window.removeEventListener("pagehide", handlePageHide);
       void flushPendingSave();

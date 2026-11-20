@@ -151,7 +151,13 @@ export default function CircleSettingsView({
   }, [circleId, initialUserId]);
 
   useEffect(() => {
-    loadCircleSettings();
+    let active = true;
+    Promise.resolve().then(() => {
+      if (active) void loadCircleSettings();
+    });
+    return () => {
+      active = false;
+    };
   }, [loadCircleSettings]);
 
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {

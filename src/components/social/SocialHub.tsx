@@ -278,7 +278,13 @@ export default function SocialHub({
   }, [initialUserId]);
 
   useEffect(() => {
-    loadSocialData();
+    let active = true;
+    Promise.resolve().then(() => {
+      if (active) void loadSocialData();
+    });
+    return () => {
+      active = false;
+    };
   }, [loadSocialData]);
 
   useEffect(() => {
