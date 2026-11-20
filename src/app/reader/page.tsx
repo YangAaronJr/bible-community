@@ -236,12 +236,13 @@ function ReaderContent() {
 
   // Load user & circles
   useEffect(() => {
+    let cancelled = false;
     async function initUserAndCircles() {
       const supabase = createClient();
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
+      if (cancelled || !user) return;
       setUserId(user.id);
 
       const { data: memberships } = await supabase
@@ -249,12 +250,14 @@ function ReaderContent() {
         .select("circle_id")
         .eq("user_id", user.id);
 
+      if (cancelled) return;
       const ids = (memberships || []).map((m) => m.circle_id);
       if (ids.length > 0) {
         const { data: circleRows } = await supabase
           .from("circles")
           .select("id, name")
           .in("id", ids);
+        if (cancelled) return;
         const list = circleRows || [];
         setCircles(list);
         const saved =
@@ -266,6 +269,9 @@ function ReaderContent() {
       }
     }
     initUserAndCircles();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Load chapter completion state + circle verse notes

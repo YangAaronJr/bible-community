@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -85,10 +85,21 @@ export default function PlansPage() {
   const [saving, setSaving] = useState(false);
   const [syncingCircleId, setSyncingCircleId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((msg: string) => {
     setFeedback(msg);
-    setTimeout(() => setFeedback(null), 2800);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => {
+      setFeedback(null);
+      toastTimerRef.current = null;
+    }, 2800);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
   }, []);
 
   const loadPlans = useCallback(async () => {
@@ -204,10 +215,15 @@ export default function PlansPage() {
       }
 
       const supabase = createClient();
-      await supabase
+      const { error: deactivateErr } = await supabase
         .from("custom_schedules")
         .update({ is_active: false })
         .eq("user_id", userId);
+
+      if (deactivateErr) {
+        showToast("Could not switch plans. Please try again.");
+        return;
+      }
 
       const items: CustomScheduleSlot[] = [
         {
@@ -225,12 +241,16 @@ export default function PlansPage() {
         is_active: true,
       });
 
-      if (!error) {
-        setNewPlanOpen(false);
-        setSwitchOpen(false);
+      if (error) {
+        showToast("Could not save your new plan. Please try again.");
         await loadPlans();
-        showToast(`"${result.title}" activated.`);
+        return;
       }
+
+      setNewPlanOpen(false);
+      setSwitchOpen(false);
+      await loadPlans();
+      showToast(`"${result.title}" activated.`);
     } finally {
       setSaving(false);
     }
@@ -238,9 +258,10 @@ export default function PlansPage() {
 
   async function handleToggleActiveRestDay(day: number) {
     if (!activeCustom) return;
-    const nextRest = activeCustom.rest_days.includes(day)
-      ? activeCustom.rest_days.filter((d) => d !== day)
-      : [...activeCustom.rest_days, day];
+    const prevRest = activeCustom.rest_days;
+    const nextRest = prevRest.includes(day)
+      ? prevRest.filter((d) => d !== day)
+      : [...prevRest, day];
 
     setCustomSchedules((prev) =>
       prev.map((s) =>
@@ -248,23 +269,40 @@ export default function PlansPage() {
       )
     );
     const supabase = createClient();
-    await supabase
+    const { error } = await supabase
       .from("custom_schedules")
       .update({ rest_days: nextRest })
       .eq("id", activeCustom.id);
+    if (error) {
+      setCustomSchedules((prev) =>
+        prev.map((s) =>
+          s.id === activeCustom.id ? { ...s, rest_days: prevRest } : s
+        )
+      );
+      showToast("Could not update rest days. Please try again.");
+    }
   }
 
   async function handleActivateSchedule(id: string) {
     if (!userId) return;
     const supabase = createClient();
-    await supabase
+    const { error: deactivateErr } = await supabase
       .from("custom_schedules")
       .update({ is_active: false })
       .eq("user_id", userId);
-    await supabase
+    if (deactivateErr) {
+      showToast("Could not switch plans. Please try again.");
+      return;
+    }
+    const { error: activateErr } = await supabase
       .from("custom_schedules")
       .update({ is_active: true })
       .eq("id", id);
+    if (activateErr) {
+      showToast("Could not activate the selected plan. Please try again.");
+      await loadPlans();
+      return;
+    }
     setSwitchOpen(false);
     await loadPlans();
     showToast("Reading plan switched.");
@@ -273,17 +311,25 @@ export default function PlansPage() {
   async function handleLeaveCustomSchedule(id: string) {
     if (!userId) return;
     const supabase = createClient();
-    await supabase
+    const { error } = await supabase
       .from("custom_schedules")
       .update({ is_active: false })
       .eq("id", id);
+    if (error) {
+      showToast("Could not switch back to preset plan.");
+      return;
+    }
     await loadPlans();
     showToast("Switched back to preset plan.");
   }
 
   async function handleDeleteSchedule(id: string) {
     const supabase = createClient();
-    await supabase.from("custom_schedules").delete().eq("id", id);
+    const { error } = await supabase.from("custom_schedules").delete().eq("id", id);
+    if (error) {
+      showToast("Could not delete reading plan. Please try again.");
+      return;
+    }
     await loadPlans();
   }
 
@@ -298,10 +344,14 @@ export default function PlansPage() {
         await selectPresetPlan(parsed.preset.id);
       } else {
         const supabase = createClient();
-        await supabase
+        const { error: deactivateErr } = await supabase
           .from("custom_schedules")
           .update({ is_active: false })
           .eq("user_id", userId);
+        if (deactivateErr) {
+          showToast("Could not sync Circle plan. Please try again.");
+          return;
+        }
 
         const items: CustomScheduleSlot[] = [
           {
@@ -311,13 +361,20 @@ export default function PlansPage() {
           },
         ];
 
-        await supabase.from("custom_schedules").insert({
-          user_id: userId,
-          title: parsed.custom.title,
-          rest_days: parsed.custom.restDays,
-          schedule_items: items as unknown as Json,
-          is_active: true,
-        });
+        const { error: insertErr } = await supabase
+          .from("custom_schedules")
+          .insert({
+            user_id: userId,
+            title: parsed.custom.title,
+            rest_days: parsed.custom.restDays,
+            schedule_items: items as unknown as Json,
+            is_active: true,
+          });
+        if (insertErr) {
+          showToast("Could not sync Circle plan. Please try again.");
+          await loadPlans();
+          return;
+        }
         await loadPlans();
         showToast(`Synced to "${parsed.custom.title}".`);
       }
@@ -550,7 +607,7 @@ export default function PlansPage() {
                 </p>
               </div>
               <Link
-                href="/circles"
+                href="/social"
                 className="px-3 py-1.5 rounded-lg border border-[#E6E1D6] dark:border-[#2C2C28] text-xs font-medium text-[#4A6B5D] dark:text-[#7C9A82] hover:bg-[#EBF1EE] dark:hover:bg-[#202923] transition-colors shrink-0"
               >
                 Circles

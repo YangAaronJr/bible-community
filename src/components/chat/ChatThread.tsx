@@ -227,14 +227,29 @@ export default function ChatThread({
   const scaledPx = (px: number) => `${Math.round(px * chatTextScale * 10) / 10}px`;
   const resolvedImageKeysRef = useRef<Set<string>>(new Set());
   const messagesRef = useRef<ChatMessageRow[]>([]);
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
   const participantMap = new Map(participants.map((p) => [p.user_id, p]));
 
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
 
+  useEffect(() => {
+    previewUrlRef.current = previewUrl;
+  }, [previewUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    };
+  }, []);
+
   const scrollToBottom = useCallback(() => {
-    setTimeout(() => {
+    if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    scrollTimerRef.current = setTimeout(() => {
+      scrollTimerRef.current = null;
       if (scrollerRef.current) {
         scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight;
       }
@@ -624,6 +639,7 @@ export default function ChatThread({
       return;
     }
     setError(null);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
     setSelectedFile(file);
     setPreviewUrl(URL.createObjectURL(file));
     setShowAttachmentTray(false);

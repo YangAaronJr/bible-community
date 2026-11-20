@@ -27,8 +27,17 @@ interface NewPlanFlowProps {
   onComplete: (result: NewPlanResult) => Promise<void> | void;
 }
 
-export default function NewPlanFlow({
-  open,
+export default function NewPlanFlow(props: NewPlanFlowProps) {
+  if (!props.open) return null;
+  return (
+    <NewPlanFlowInner
+      key={props.initialPresetId ?? "nt-90"}
+      {...props}
+    />
+  );
+}
+
+function NewPlanFlowInner({
   mode,
   saving = false,
   initialPresetId = "nt-90",
@@ -81,8 +90,6 @@ export default function NewPlanFlow({
     () => BIBLE_BOOKS.filter((b) => b.testament === testamentFilter),
     [testamentFilter]
   );
-
-  if (!open) return null;
 
   function toggleBook(bookName: string) {
     setSelectedBooks((prev) =>

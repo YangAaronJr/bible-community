@@ -192,8 +192,16 @@ export default function VerseNotesDrawer({
   }
 
   async function handleDelete(noteId: string) {
+    setError(null);
     const supabase = createClient();
-    await supabase.from("verse_notes").delete().eq("id", noteId);
+    const { error: deleteErr } = await supabase
+      .from("verse_notes")
+      .delete()
+      .eq("id", noteId);
+    if (deleteErr) {
+      setError("Could not delete reflection. Please try again.");
+      return;
+    }
     onNoteChanged();
   }
 

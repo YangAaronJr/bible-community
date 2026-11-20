@@ -76,12 +76,13 @@ export default function ThreadDrawer({
   }, [rootMessage.image_url]);
 
   useEffect(() => {
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       if (scrollerRef.current) {
         scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight;
       }
       inputRef.current?.focus();
     }, 40);
+    return () => clearTimeout(timer);
   }, [rootMessage.id, replies.length]);
 
   async function handleSendReply(e: React.FormEvent) {

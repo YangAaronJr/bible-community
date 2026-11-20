@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -63,10 +63,17 @@ export default function CircleSettingsView({
   const [confirmingLeave, setConfirmingLeave] = useState(false);
   const [leavingCircle, setLeavingCircle] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    };
+  }, []);
 
   const loadCircleSettings = useCallback(async () => {
     const supabase = createClient();
@@ -99,7 +106,7 @@ export default function CircleSettingsView({
           .maybeSingle(),
         supabase
           .from("custom_schedules")
-          .select("id")
+          .select("id, title, schedule_items")
           .eq("user_id", uid)
           .eq("is_active", true)
           .limit(1)
@@ -119,8 +126,23 @@ export default function CircleSettingsView({
     setSharedPlanId(planVal);
 
     if (typeof window !== "undefined" && planVal) {
-      const localPlan = localStorage.getItem("selected_reading_plan");
-      setMyPlanSynced(!activeCustom && localPlan === planVal);
+      const parsedShared = parseSharedPlan(planVal);
+      if (parsedShared?.kind === "custom") {
+        const items = Array.isArray(activeCustom?.schedule_items)
+          ? (activeCustom.schedule_items as unknown as CustomScheduleSlot[])
+          : [];
+        const expectedTrack = parsedShared.custom.books.join(", ");
+        const matchesCustom =
+          Boolean(activeCustom) &&
+          activeCustom?.title === parsedShared.custom.title &&
+          items.length === 1 &&
+          items[0]?.track === expectedTrack &&
+          (items[0]?.chaptersPerDay || 1) === parsedShared.custom.chaptersPerDay;
+        setMyPlanSynced(matchesCustom);
+      } else {
+        const localPlan = localStorage.getItem("selected_reading_plan");
+        setMyPlanSynced(!activeCustom && localPlan === planVal);
+      }
     } else {
       setMyPlanSynced(false);
     }
@@ -293,10 +315,11 @@ export default function CircleSettingsView({
           .eq("user_id", userId);
         if (error) throw error;
       } else {
-        await supabase
+        const { error: deactivateErr } = await supabase
           .from("custom_schedules")
           .update({ is_active: false })
           .eq("user_id", userId);
+        if (deactivateErr) throw deactivateErr;
 
         const items: CustomScheduleSlot[] = [
           {
@@ -510,7 +533,11 @@ export default function CircleSettingsView({
             onClick={() => {
               navigator.clipboard.writeText(circle.invite_code);
               setCopiedCode(true);
-              setTimeout(() => setCopiedCode(false), 2000);
+              if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+              copiedTimerRef.current = setTimeout(() => {
+                setCopiedCode(false);
+                copiedTimerRef.current = null;
+              }, 2000);
             }}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-[#E6E1D6] text-xs font-semibold text-[#4A6B5D] hover:bg-[#EBF1EE] transition-colors cursor-pointer"
           >
