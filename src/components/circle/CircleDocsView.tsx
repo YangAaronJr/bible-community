@@ -75,6 +75,7 @@ export default function CircleDocsView({
     null
   );
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
+  const [docError, setDocError] = useState<string | null>(null);
 
   const contentSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const titleSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -85,6 +86,7 @@ export default function CircleDocsView({
   const pendingContentRef = useRef<{ docId: string; html: string } | null>(null);
   const pendingTitleRef = useRef<{ docId: string; title: string } | null>(null);
   const conflictDocIdRef = useRef<string | null>(null);
+  const accessTokenRef = useRef<string | null>(null);
 
   const memberMap = new Map(members.map((m) => [m.user_id, m]));
   const activeDoc = docs.find((d) => d.id === activeDocId) || null;
@@ -234,20 +236,80 @@ export default function CircleDocsView({
     setLoading(false);
   }, [circle.id]);
 
+  const flushPendingSaveKeepalive = useCallback(() => {
+    const pendingContent = pendingContentRef.current;
+    const pendingTitle = pendingTitleRef.current;
+    const docId = pendingContent?.docId ?? pendingTitle?.docId ?? null;
+    if (!docId) return false;
+
+    const hasContent = pendingContent?.docId === docId;
+    const hasTitle = pendingTitle?.docId === docId;
+    if (!hasContent && !hasTitle) return false;
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const token = accessTokenRef.current;
+    if (!supabaseUrl || !supabaseAnonKey || !token) return false;
+
+    const updatePayload: {
+      content?: string;
+      title?: string;
+      updated_by: string;
+      updated_at: string;
+    } = {
+      updated_by: currentUserId,
+      updated_at: new Date().toISOString(),
+    };
+    if (hasContent) updatePayload.content = pendingContent.html;
+    if (hasTitle) updatePayload.title = pendingTitle.title;
+
+    const params = new URLSearchParams({ id: `eq.${docId}` });
+    const expectedUpdatedAt = baseUpdatedAtRef.current[docId];
+    if (expectedUpdatedAt) {
+      params.set("updated_at", `eq.${expectedUpdatedAt}`);
+    }
+
+    void fetch(`${supabaseUrl}/rest/v1/circle_docs?${params.toString()}`, {
+      method: "PATCH",
+      keepalive: true,
+      headers: {
+        "Content-Type": "application/json",
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${token}`,
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify(updatePayload),
+    });
+    return true;
+  }, [currentUserId]);
+
   useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data }) => {
+      accessTokenRef.current = data.session?.access_token ?? null;
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      accessTokenRef.current = session?.access_token ?? null;
+    });
+
     setLoading(true);
     loadDocs();
     const handlePageHide = () => {
-      void flushPendingSave();
+      if (!flushPendingSaveKeepalive()) {
+        void flushPendingSave();
+      }
     };
     window.addEventListener("pagehide", handlePageHide);
     return () => {
+      subscription.unsubscribe();
       window.removeEventListener("pagehide", handlePageHide);
       void flushPendingSave();
       if (contentSaveTimerRef.current) clearTimeout(contentSaveTimerRef.current);
       if (titleSaveTimerRef.current) clearTimeout(titleSaveTimerRef.current);
     };
-  }, [loadDocs, flushPendingSave]);
+  }, [loadDocs, flushPendingSave, flushPendingSaveKeepalive]);
 
   // Sync editor content only when switching docs
   useEffect(() => {
@@ -339,13 +401,14 @@ export default function CircleDocsView({
 
   async function handleCreateDoc() {
     setCreating(true);
+    setDocError(null);
     const supabase = createClient();
     const title =
       docs.length === 0
         ? "Sunday Sermon Notes"
         : `Study Note #${docs.length + 1}`;
 
-    const { data: created } = await supabase
+    const { data: created, error } = await supabase
       .from("circle_docs")
       .insert({
         circle_id: circle.id,
@@ -357,11 +420,13 @@ export default function CircleDocsView({
       .single();
 
     setCreating(false);
-    if (created) {
-      baseUpdatedAtRef.current[created.id] = created.updated_at;
-      setDocs((prev) => [created, ...prev]);
-      setActiveDocId(created.id);
+    if (error || !created) {
+      setDocError("Could not create document. Please try again.");
+      return;
     }
+    baseUpdatedAtRef.current[created.id] = created.updated_at;
+    setDocs((prev) => [created, ...prev]);
+    setActiveDocId(created.id);
   }
 
   async function handleTitleChange(nextTitle: string) {
@@ -433,17 +498,23 @@ export default function CircleDocsView({
 
   async function handleDeleteDoc(docId: string) {
     setDeletingDocId(docId);
+    setDocError(null);
+    const supabase = createClient();
+    const { error } = await supabase.from("circle_docs").delete().eq("id", docId);
+    setDeletingDocId(null);
+    if (error) {
+      setDocError("Could not delete document. Please try again.");
+      setConfirmDeleteDocId(null);
+      return;
+    }
     if (pendingContentRef.current?.docId === docId) {
       pendingContentRef.current = null;
     }
     if (pendingTitleRef.current?.docId === docId) {
       pendingTitleRef.current = null;
     }
-    const supabase = createClient();
-    await supabase.from("circle_docs").delete().eq("id", docId);
     setDocs((prev) => prev.filter((d) => d.id !== docId));
     setConfirmDeleteDocId(null);
-    setDeletingDocId(null);
     if (activeDocIdRef.current === docId) {
       setConflictDoc(null);
       setActiveDocId(null);
@@ -663,6 +734,12 @@ export default function CircleDocsView({
           <span>New Doc</span>
         </button>
       </div>
+
+      {docError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs text-red-700">
+          {docError}
+        </div>
+      )}
 
       {loading ? (
         <div className="p-8 bg-white border border-[#E6E1D6] rounded-2xl flex items-center justify-center text-xs text-[#6B7280]">

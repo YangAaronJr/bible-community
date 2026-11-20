@@ -53,6 +53,7 @@ export default function CirclePrayerSection({
   const [newContent, setNewContent] = useState("");
   const [posting, setPosting] = useState(false);
   const [busyPrayerId, setBusyPrayerId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const memberMap = new Map(members.map((m) => [m.user_id, m]));
 
@@ -132,9 +133,10 @@ export default function CirclePrayerSection({
     e.preventDefault();
     if (!newContent.trim()) return;
     setPosting(true);
+    setError(null);
 
     const supabase = createClient();
-    const { error } = await supabase.from("prayer_requests").insert({
+    const { error: insertErr } = await supabase.from("prayer_requests").insert({
       circle_id: circle.id,
       user_id: currentUserId,
       content: newContent.trim(),
@@ -142,29 +144,36 @@ export default function CirclePrayerSection({
     });
 
     setPosting(false);
-    if (!error) {
-      setNewContent("");
-      await loadPrayers();
+    if (insertErr) {
+      setError("Could not share prayer request. Please try again.");
+      return;
     }
+    setNewContent("");
+    await loadPrayers();
   }
 
   async function handleTogglePraying(prayerId: string) {
     setBusyPrayerId(prayerId);
+    setError(null);
     const supabase = createClient();
     const currentSet = responsesByPrayer.get(prayerId) || new Set<string>();
     const isPraying = currentSet.has(currentUserId);
 
-    if (isPraying) {
-      await supabase
-        .from("prayer_responses")
-        .delete()
-        .eq("prayer_id", prayerId)
-        .eq("user_id", currentUserId);
-    } else {
-      await supabase.from("prayer_responses").insert({
-        prayer_id: prayerId,
-        user_id: currentUserId,
-      });
+    const { error: respErr } = isPraying
+      ? await supabase
+          .from("prayer_responses")
+          .delete()
+          .eq("prayer_id", prayerId)
+          .eq("user_id", currentUserId)
+      : await supabase.from("prayer_responses").insert({
+          prayer_id: prayerId,
+          user_id: currentUserId,
+        });
+
+    if (respErr) {
+      setError("Could not update prayer response. Please try again.");
+      setBusyPrayerId(null);
+      return;
     }
 
     await loadPrayers();
@@ -172,22 +181,40 @@ export default function CirclePrayerSection({
   }
 
   async function handleToggleAnswered(req: PrayerRequestRow) {
+    setError(null);
     const supabase = createClient();
-    await supabase
+    const { error: updateErr } = await supabase
       .from("prayer_requests")
       .update({ is_answered: !req.is_answered })
       .eq("id", req.id);
+    if (updateErr) {
+      setError("Could not update prayer status. Please try again.");
+      return;
+    }
     await loadPrayers();
   }
 
   async function handleDeletePrayer(id: string) {
+    setError(null);
     const supabase = createClient();
-    await supabase.from("prayer_requests").delete().eq("id", id);
+    const { error: deleteErr } = await supabase
+      .from("prayer_requests")
+      .delete()
+      .eq("id", id);
+    if (deleteErr) {
+      setError("Could not delete prayer request. Please try again.");
+      return;
+    }
     await loadPrayers();
   }
 
   return (
     <div className="space-y-4">
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs text-red-700">
+          {error}
+        </div>
+      )}
       {/* Compose Prayer Request */}
       <form
         onSubmit={handleCreatePrayer}
