@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ArrowLeft, Check, ChevronDown, Loader2, Sparkles, X } from "lucide-react";
 import {
   BIBLE_BOOKS,
@@ -27,8 +27,17 @@ interface NewPlanFlowProps {
   onComplete: (result: NewPlanResult) => Promise<void> | void;
 }
 
-export default function NewPlanFlow({
-  open,
+export default function NewPlanFlow(props: NewPlanFlowProps) {
+  if (!props.open) return null;
+  return (
+    <NewPlanFlowInner
+      key={props.initialPresetId ?? "nt-90"}
+      {...props}
+    />
+  );
+}
+
+function NewPlanFlowInner({
   mode,
   saving = false,
   initialPresetId = "nt-90",
@@ -63,19 +72,6 @@ export default function NewPlanFlow({
   const [chaptersPerDay, setChaptersPerDay] = useState<1 | 2 | 3>(1);
   const [restDays, setRestDays] = useState<number[]>([]);
 
-  useEffect(() => {
-    if (!open) return;
-    setStep(1);
-    setTab("presets");
-    setSelectedPresetId(initialPresetId);
-    setExpandedPresetIds(new Set());
-    setCustomTitle("");
-    setTestamentFilter("NT");
-    setSelectedBooks(["John"]);
-    setChaptersPerDay(1);
-    setRestDays([]);
-  }, [open, initialPresetId]);
-
   const selectedPreset: ReadingPlanPreset = useMemo(
     () =>
       READING_PLAN_PRESETS.find((p) => p.id === selectedPresetId) ||
@@ -94,8 +90,6 @@ export default function NewPlanFlow({
     () => BIBLE_BOOKS.filter((b) => b.testament === testamentFilter),
     [testamentFilter]
   );
-
-  if (!open) return null;
 
   function toggleBook(bookName: string) {
     setSelectedBooks((prev) =>
